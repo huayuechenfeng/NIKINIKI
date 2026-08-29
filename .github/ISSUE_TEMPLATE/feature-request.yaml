@@ -1,0 +1,30 @@
+name: Feature request
+description: 为 NIKINIKI / Symbian³ 提议功能或兼容性改进
+labels: ["feature request"]
+body:
+  - type: textarea
+    validations:
+      required: true
+    attributes:
+      label: 使用场景与问题
+      description: 请说明设备、用户目标及当前行为，而不只是给出实现方案
+  - type: textarea
+    validations:
+      required: true
+    attributes:
+      label: 建议方案
+      description: 请说明预期交互、兼容范围以及对内存/性能的可能影响
+  - type: textarea
+    attributes:
+      label: 参考资料
+      description: 可提供公开规范、开源实现或真机证据；请注明许可证和来源
+  - type: checkboxes
+    attributes:
+      label: 范围确认
+      options:
+        - label: 我已阅读当前开发计划与 1.0 前解码政策
+          required: true
+        - label: 方案不依赖桥接、远程重封装或远程转码
+          required: true
+        - label: 我已搜索现有 issue，未发现相同提案
+          required: true

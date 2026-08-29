@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:xlink="http://www.w3.org/1999/xlink"
+     version="1.1"
+     width="256" height="256" viewBox="0 0 256 256">
+  <!--
+    SVG-T launcher artwork derived from the project-supplied NIKINIKI icon.
+    Keep this file filter-free so Nokia Belle's mifconv/SVG engine can render
+    it reliably at all application-grid sizes.
+  -->
+  <defs>
+    <linearGradient id="outer" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff4b9b"/>
+      <stop offset="0.55" stop-color="#ff2385"/>
+      <stop offset="1" stop-color="#f30b70"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffd7eb"/>
+      <stop offset="1" stop-color="#f7b4d5"/>
+    </linearGradient>
+    <linearGradient id="white" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#fff3fa"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="7" y="7" width="242" height="242" rx="50" ry="50"
+        fill="url(#outer)" stroke="#ff83ba" stroke-width="2"/>
+  <path d="M25 51 C48 22 79 17 128 17 C177 17 208 22 231 51"
+        fill="none" stroke="#ff76b4" stroke-width="3" opacity="0.55"/>
+
+  <!-- Feet -->
+  <rect x="71" y="193" width="43" height="28" rx="14" ry="14"
+        fill="url(#white)"/>
+  <rect x="142" y="193" width="43" height="28" rx="14" ry="14"
+        fill="url(#white)"/>
+
+  <!-- Cat ears, deliberately kept behind the television frame. -->
+  <path d="M57 90 C57 65 64 42 75 36 C87 33 103 52 113 70"
+        fill="#f7b4d5" stroke="url(#white)" stroke-width="15"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M143 70 C153 52 169 33 181 36 C192 42 199 65 199 90"
+        fill="#f7b4d5" stroke="url(#white)" stroke-width="15"
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Television shell and pink screen. -->
+  <rect x="28" y="68" width="200" height="144" rx="49" ry="49"
+        fill="url(#white)"/>
+  <rect x="45" y="85" width="166" height="109" rx="36" ry="36"
+        fill="url(#screen)" stroke="#f5a3ca" stroke-width="1"/>
+
+  <!-- Face -->
+  <path d="M71 137 C80 125 91 125 99 137"
+        fill="none" stroke="#f11b73" stroke-width="8"
+        stroke-linecap="round"/>
+  <path d="M157 137 C165 125 176 125 185 137"
+        fill="none" stroke="#f11b73" stroke-width="8"
+        stroke-linecap="round"/>
+  <path d="M104 151 C104 164 121 168 128 155 C135 168 152 164 152 151"
+        fill="none" stroke="#f11b73" stroke-width="8"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M57 153 L70 157 M57 169 L70 164 M199 153 L186 157 M199 169 L186 164"
+        fill="none" stroke="#ef4388" stroke-width="6"
+        stroke-linecap="round"/>
+</svg>

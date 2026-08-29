@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/assets">
+        <file alias="switch_font.ttf">../../resources/font/nikiniki_cjk_subset.ttf</file>
+        <file alias="nikiniki_icon.png">../../app/icons/nikiniki.png</file>
+    </qresource>
+</RCC>

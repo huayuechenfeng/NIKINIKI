@@ -1,0 +1,103 @@
+schema: 2
+updated: 2026-08-29
+
+project:
+  product_name: NIKINIKI
+  license: GPL-3.0-only
+  former_names:
+    - wiliwili for Symbian3
+    - wiliwili_symbian
+
+upstream_wiliwili:
+  url: https://github.com/xfangfang/wiliwili.git
+  branch: yoga
+  commit: 88e5876bea9502d06f46a8656e3530684d3aaf7d
+  license: GPL-3.0-only
+
+entries:
+  - origin: wiliwili/include/api/bilibili/api.h
+    local_path: symbian/include/network/bilibili_endpoints.h
+    reuse_level: derived-focused-list
+    license: GPL-3.0-only
+    scope: twelve endpoint mappings used by the application
+    notes: complete upstream header is no longer compiled
+
+  - origin: wiliwili/include/api/bilibili/result
+    local_path:
+      - symbian/include/model
+      - symbian/source/network
+    reuse_level: behavior-compatible-reimplementation
+    license: GPL-3.0-only
+    notes: Qt/C++03 models and parsers; no nlohmann Result headers compiled
+
+  - origin: wiliwili/include/api/bilibili/util/wbi.hpp
+    local_path: symbian/source/network/bilibili_wbi.cpp
+    reuse_level: algorithm-compatible-port
+    license: GPL-3.0-only
+    notes: Qt containers and local JSON reader replace cpr/C++11 coupling
+
+  - origin:
+      - wiliwili/include/presenter
+      - wiliwili/include/fragment
+      - wiliwili/include/utils/activity_helper.hpp
+    local_path:
+      - symbian/source/app/wiliwili_widget.cpp
+      - symbian/source/ui
+    reuse_level: structural-behavior-reference
+    license: GPL-3.0-only
+    notes: navigation/page behavior reimplemented for Qt 4 and NanoVG
+
+  - origin: wiliwili/include/view/mpv_core.hpp
+    local_path:
+      - symbian/source/ui/video_player_widget.cpp
+      - symbian/source/platform/video_playback_backend.cpp
+    reuse_level: backend-replacement
+    license: GPL-3.0-only
+    notes: MMF and on-phone FFmpeg replace mpv
+
+  - origin: resources/pictures/video-card-bg.png
+    local_path: symbian/resources/pictures/video-card-bg.png
+    reuse_level: direct-resource-snapshot
+    license: GPL-3.0-only
+
+third_party:
+  - name: NanoVG
+    origin_commit: borealis@5f08b286f3df737f3321d2247a6fe633fcead03c
+    local_path: symbian/third_party/nanovg
+    license: zlib-style
+    compiled: true
+
+  - name: QR-Code-generator
+    origin_commit: 720f62bddb7226106071d4728c292cb1df519ceb
+    local_path: symbian/third_party/qrcodegen
+    license: MIT
+    compiled: true
+
+  - name: Source Han Sans
+    local_path: symbian/resources/font
+    license: OFL-1.1
+    compiled: false
+    packaged: true
+
+  - name: PPSSPP-FFmpeg
+    origin_commit: b87f7c6d522d1edba77cfc4fac96ce48a236f806
+    local_path: symbian/third_party/ppsspp_ffmpeg
+    license: LGPL-2.1-or-later
+    compiled: true
+    notes: generated libraries are ignored; public binary releases need relink materials
+
+clean_room:
+  - compatibility_surface: mongoose mg_json subset
+    local_path: symbian/third_party/mongoose_compat
+    license: GPL-3.0-only
+    notes: no Mongoose source is copied, compiled or distributed
+
+excluded_from_public_repository:
+  - wiliwili/
+  - library/
+  - resources/
+  - cmake/
+  - scripts/
+  - winrt/
+  - symbian/archive/
+  - all build outputs, packages, certificates, keys and private logs

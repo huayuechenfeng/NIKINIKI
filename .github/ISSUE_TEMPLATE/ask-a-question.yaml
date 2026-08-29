@@ -1,0 +1,29 @@
+name: Ask a question
+description: 询问 NIKINIKI 的使用、构建或真机验证问题
+labels: ["question"]
+body:
+  - type: dropdown
+    validations:
+      required: true
+    attributes:
+      label: 问题类型
+      options:
+        - 手机安装与使用
+        - Qt/GCCE 构建
+        - 播放与编解码
+        - 登录与网络
+        - 文档与项目沿革
+  - type: textarea
+    validations:
+      required: true
+    attributes:
+      label: 问题描述
+      description: 请提供设备、版本、已尝试步骤和完整错误信息
+  - type: checkboxes
+    attributes:
+      label: 提交确认
+      options:
+        - label: 我已阅读 README 和 docs/README_ZH.md
+          required: true
+        - label: 我已搜索现有 issue，未发现答案
+          required: true
