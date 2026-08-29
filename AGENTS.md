@@ -25,7 +25,7 @@ work. Never maintain or export a second editable copy of the product source.
 
 Current facts that later sessions must preserve:
 
-- on 2026-08-29 the user promoted the successfully built current mainline to the formal 1.0.0 release. The `Symbian3Qt474` GCCE Release build completed with `sbs errors: 0` and 32 existing warnings; the formal SIS is `symbian/out/releases/v1.0.0/NIKINIKI_1.0.0_release.sis`, 9,804,372 bytes, SHA-256 `49748F5B4061F1F3D776B9FA7275B0092F2BA75F9F46872AE2FF88BB2B641095`, signed by the current Qt Development Frameworks certificate valid 2026-08-24 through 2036-08-21;
+- on 2026-08-29 the user promoted the successfully built current mainline to the formal 1.0.0 release. The `Symbian3Qt474` GCCE Release build completed with `sbs errors: 0` and 32 existing warnings; the formal SIS is `symbian/out/releases/v1.0.0/NIKINIKI_1.0.0_release.sis`, 9,827,892 bytes, SHA-256 `2CDF906D345E1E60F9833DAA0695D5172A1D36D75073BFD8548633381D9A6E98`, signed by the current Qt Development Frameworks certificate valid 2026-08-24 through 2036-08-21 and containing GPL/NOTICE/FFmpeg LGPL notices;
 - 0.7 historically kept AVKON/QGL portrait and rotated only the MMF video `RWindow`; the 0.9 source now uses the device-verified native-landscape window state machine for both MMF and local FFmpeg playback;
 - the Nokia 603 has confirmed first-session horizontal picture, audio, danmaku over video, and clear controls/UI;
 - `KErrMMPartialPlayback (-12017)` is treated as recoverable and playback continues after track probing;

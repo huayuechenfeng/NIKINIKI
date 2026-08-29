@@ -33,6 +33,11 @@ git -C .tmp/ppsspp-ffmpeg-research checkout b87f7c6d522d1edba77cfc4fac96ce48a236
 symbian\third_party\ppsspp_ffmpeg\Build-Gcce-H264.ps1 -EnableArmAssembly -Reconfigure
 ```
 
+`Build-Gcce-H264.ps1` verifies that exact clean Git commit before compiling and
+defaults to `Symbian3Qt474`, the public Release SDK. `SdkRoot`, Git Bash,
+MSYS2 Bash, make and GCCE paths are explicit parameters for non-default local
+installations; a mismatched checkout is rejected rather than silently built.
+
 The generated `build/`, `include/`, and `lib/` trees are local build outputs
 and are intentionally ignored by Git. Then build the ordinary application:
 

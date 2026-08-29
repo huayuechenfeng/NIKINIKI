@@ -28,8 +28,9 @@
 
 - [NIKINIKI 1.0.0 GitHub Release](https://github.com/huayuechenfeng/NIKINIKI/releases/tag/v1.0.0)
 - [直接下载正式 SIS](https://github.com/huayuechenfeng/NIKINIKI/releases/download/v1.0.0/NIKINIKI_1.0.0_release.sis)
+- [LGPL 重链接材料](https://github.com/huayuechenfeng/NIKINIKI/releases/download/v1.0.0/NIKINIKI_1.0.0_relink_materials.zip)
 - 正式资产文件名：`NIKINIKI_1.0.0_release.sis`
-- SHA-256：`49748F5B4061F1F3D776B9FA7275B0092F2BA75F9F46872AE2FF88BB2B641095`
+- SHA-256：`2CDF906D345E1E60F9833DAA0695D5172A1D36D75073BFD8548633381D9A6E98`
 
 ## 安装前置说明
 
@@ -39,8 +40,8 @@
 Symbian³ 原版和 Symbian Anna 还需要安装 **Qt 4.7.4 / Qt Mobility 1.2.1**，
 本仓库已收录 SDK 中的原始安装包，可直接下载：
 
-- [Qt-4.7.403-for-Anna.sis](https://raw.githubusercontent.com/huayuechenfeng/NIKINIKI/main/prerequisites/Qt-4.7.403-for-Anna.sis)
-- [QtMobility-1.2.1-for-Anna.sis](https://raw.githubusercontent.com/huayuechenfeng/NIKINIKI/main/prerequisites/QtMobility-1.2.1-for-Anna.sis)
+- [Qt-4.7.403-for-Anna.sis](https://raw.githubusercontent.com/huayuechenfeng/NIKINIKI/v1.0.0/prerequisites/Qt-4.7.403-for-Anna.sis)
+- [QtMobility-1.2.1-for-Anna.sis](https://raw.githubusercontent.com/huayuechenfeng/NIKINIKI/v1.0.0/prerequisites/QtMobility-1.2.1-for-Anna.sis)
 
 Belle 设备通常已经具备所需运行环境。若安装上述运行库和 TLS 1.2 补丁后仍出现
 网络异常，还可以尝试 [Qt TLS 补丁](https://nnproject.cc/qtls/)。

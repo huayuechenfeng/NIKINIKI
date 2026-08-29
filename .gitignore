@@ -53,8 +53,11 @@ symbian/third_party/ppsspp_ffmpeg/lib/
 symbian/third_party/mongoose_compat/tests/*.exe
 symbian/third_party/mongoose_compat/tests/*.obj
 
-# Never commit binaries, packages or signing material
+# Never commit binaries, packages or signing material.  The two explicit Qt
+# runtime installers below are the only documented public-repository exception.
 *.sis
+!prerequisites/Qt-4.7.403-for-Anna.sis
+!prerequisites/QtMobility-1.2.1-for-Anna.sis
 *.sisx
 *.exe
 *.dll

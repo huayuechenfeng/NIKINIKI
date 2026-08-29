@@ -29,5 +29,21 @@ traceability.
 reader exposing only the small API surface used by NIKINIKI. No Mongoose source
 is compiled or distributed as part of the application.
 
-Qt, Symbian SDK and device firmware components are external toolchain/system
-dependencies and are not redistributed in this repository.
+## Qt runtime installers
+
+The following unmodified runtime installers are intentionally redistributed in
+`prerequisites/` as the only binary-package exception in this repository. They
+were extracted from the installed `Qt SDK for Symbian` Anna package:
+
+| File | SDK source path | Size | SHA-256 |
+|---|---|---:|---|
+| `Qt-4.7.403-for-Anna.sis` | `sis/Symbian_Anna/Qt/4.7.4/Qt-4.7.403-for-Anna.sis` | 7,929,828 bytes | `E270767D363770B7CCFB3D3F1973BC9834F833BCCCD50A5441BDA82E6581B2CE` |
+| `QtMobility-1.2.1-for-Anna.sis` | `sis/Symbian_Anna/QtMobility/1.2.1/QtMobility-1.2.1-for-Anna.sis` | 2,475,460 bytes | `312DE62AA8CA99AE5B460F58F5B2FDB3E45A33935525DACD327C98B44E701065` |
+
+The installed SDK includes `LICENSE.LGPL` and `LGPL_EXCEPTION.txt` for its Qt
+components. Those files identify the Qt source-license basis, but they do not
+by themselves establish independent redistribution permission for these
+historical SDK installer binaries. Their redistribution status must therefore
+be confirmed against the applicable historical SDK terms before relying on
+anything beyond this compatibility archive. Qt, the remainder of the Symbian
+SDK, and device firmware are not otherwise redistributed here.

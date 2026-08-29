@@ -18,6 +18,47 @@ function Assert-Condition([bool]$Condition, [string]$Message) {
     }
 }
 
+function Normalize-RelativePath([string]$Path) {
+    return $Path.Replace('\', '/')
+}
+
+$git = Get-Command git -ErrorAction SilentlyContinue | Select-Object -First 1
+if (-not $git) {
+    throw 'Git is required to validate the public repository boundary.'
+}
+$trackedRelativePaths = @(& $git.Source -C $root ls-files)
+if ($LASTEXITCODE -ne 0) {
+    throw 'Unable to enumerate tracked repository files.'
+}
+$trackedRelativePaths = @($trackedRelativePaths | ForEach-Object { Normalize-RelativePath $_ })
+$trackedPathSet = [Collections.Generic.HashSet[string]]::new(
+    [StringComparer]::OrdinalIgnoreCase)
+foreach ($relative in $trackedRelativePaths) {
+    [void]$trackedPathSet.Add($relative)
+}
+
+function Test-TrackedPath([string]$RelativePath) {
+    $normalized = Normalize-RelativePath $RelativePath
+    foreach ($tracked in $trackedRelativePaths) {
+        if ($tracked -eq $normalized -or $tracked.StartsWith("$normalized/", [StringComparison]::OrdinalIgnoreCase)) {
+            return $true
+        }
+    }
+    return $false
+}
+
+$trackedFiles = foreach ($relative in $trackedRelativePaths) {
+    $fullPath = Join-Path $root ($relative.Replace('/', [IO.Path]::DirectorySeparatorChar))
+    if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
+        throw "Tracked file is missing from checkout: $relative"
+    }
+    [PSCustomObject]@{
+        RelativePath = $relative
+        FullName = $fullPath
+        Extension = [IO.Path]::GetExtension($relative).ToLowerInvariant()
+    }
+}
+
 $requiredFiles = @(
     'README.md',
     'AGENTS.md',
@@ -33,18 +74,14 @@ $requiredFiles = @(
     'symbian/app/resources.qrc'
 )
 foreach ($relative in $requiredFiles) {
-    Assert-Condition `
-        (Test-Path -LiteralPath (Join-Path $root $relative) -PathType Leaf) `
-        "Required repository file is missing: $relative"
+    Assert-Condition $trackedPathSet.Contains($relative) "Required repository file is missing: $relative"
 }
 
 $forbiddenRootDirectories = @(
     'wiliwili', 'library', 'resources', 'cmake', 'scripts', 'winrt'
 )
 foreach ($relative in $forbiddenRootDirectories) {
-    Assert-Condition `
-        (-not (Test-Path -LiteralPath (Join-Path $root $relative))) `
-        "Research/upstream directory entered the product repository: $relative"
+    Assert-Condition (-not (Test-TrackedPath $relative)) "Research/upstream directory entered the product repository: $relative"
 }
 
 $forbiddenPaths = @(
@@ -53,58 +90,55 @@ $forbiddenPaths = @(
     'symbian/LOCAL_ARTIFACTS.md'
 )
 foreach ($relative in $forbiddenPaths) {
-    Assert-Condition `
-        (-not (Test-Path -LiteralPath (Join-Path $root $relative))) `
-        "Private or generated path entered the product repository: $relative"
+    Assert-Condition (-not (Test-TrackedPath $relative)) "Private or generated path entered the product repository: $relative"
 }
 
 $forbiddenExtensions = @(
     '.sis', '.sisx', '.exe', '.dll', '.lib', '.a', '.o', '.obj',
     '.pfx', '.p12', '.key', '.cer', '.csr', '.dmp'
 )
-$forbiddenFiles = Get-ChildItem -LiteralPath $root -Recurse -File |
-    Where-Object {
-        $_.FullName -notlike (Join-Path $root '.git\*') -and
-        $forbiddenExtensions -contains $_.Extension.ToLowerInvariant()
-    }
+$allowedBinaryPaths = @(
+    'prerequisites/Qt-4.7.403-for-Anna.sis',
+    'prerequisites/QtMobility-1.2.1-for-Anna.sis'
+)
+$forbiddenFiles = $trackedFiles | Where-Object {
+    $forbiddenExtensions -contains $_.Extension -and
+    $allowedBinaryPaths -notcontains $_.RelativePath
+}
 Assert-Condition `
     (-not $forbiddenFiles) `
     ("Forbidden generated/signing files found:" + [Environment]::NewLine +
-        (($forbiddenFiles | ForEach-Object FullName) -join [Environment]::NewLine))
+        (($forbiddenFiles | ForEach-Object RelativePath) -join [Environment]::NewLine))
 
-$textFiles = Get-ChildItem -LiteralPath $root -Recurse -File |
-    Where-Object {
-        $_.FullName -notlike (Join-Path $root '.git\*') -and
-        $_.Extension.ToLowerInvariant() -in @(
-            '.c', '.cpp', '.h', '.hpp', '.pro', '.qrc', '.ps1', '.md', '.yml',
-            '.yaml', '.json', '.mjs', '.py', '.txt')
-    }
+$textExtensions = @(
+    '.c', '.cpp', '.h', '.hpp', '.pro', '.qrc', '.ps1', '.md', '.yml',
+    '.yaml', '.json', '.mjs', '.py', '.txt')
+$textFiles = $trackedFiles | Where-Object { $textExtensions -contains $_.Extension }
 $sourceBoundaryFiles = $textFiles | Where-Object {
-    $_.FullName -like (Join-Path $root 'symbian\app\*') -or
-    $_.FullName -like (Join-Path $root 'symbian\source\*') -or
-    $_.FullName -like (Join-Path $root 'symbian\include\*') -or
-    $_.FullName -like (Join-Path $root 'symbian\generated\*')
+    $_.RelativePath -like 'symbian/app/*' -or
+    $_.RelativePath -like 'symbian/source/*' -or
+    $_.RelativePath -like 'symbian/include/*' -or
+    $_.RelativePath -like 'symbian/generated/*'
 }
-$upstreamPathPattern =
-    '(?i)(\.\.[\\/]){2,}(wiliwili|library|resources)([\\/]|$)'
-$upstreamPathMatches = $sourceBoundaryFiles |
-    Select-String -Pattern $upstreamPathPattern
+$upstreamPathPattern = '(?i)(\.\.[\\/]){2,}(wiliwili|library|resources)([\\/]|$)'
+$upstreamPathMatches = foreach ($file in $sourceBoundaryFiles) {
+    Select-String -LiteralPath $file.FullName -Pattern $upstreamPathPattern -List
+}
 Assert-Condition `
     (-not $upstreamPathMatches) `
-    ("Product build files reference the external research tree:" +
-        [Environment]::NewLine +
+    ("Product build files reference the external research tree:" + [Environment]::NewLine +
         ($upstreamPathMatches -join [Environment]::NewLine))
 
-$sensitiveTextFiles = $textFiles | Where-Object {
-    $_.FullName -ne $PSCommandPath
-}
+$sensitiveTextFiles = $textFiles | Where-Object { $_.FullName -ne $PSCommandPath }
 $forbiddenTextPatterns = @(
     '(?i)[A-Z]:[\\/]Users[\\/]',
     '(?<![0-9.])(?:10(?:\.[0-9]{1,3}){3}|192\.168(?:\.[0-9]{1,3}){2}|172\.(?:1[6-9]|2[0-9]|3[01])(?:\.[0-9]{1,3}){2})(?![0-9.])',
     '-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----'
 )
 foreach ($pattern in $forbiddenTextPatterns) {
-    $matches = $sensitiveTextFiles | Select-String -Pattern $pattern
+    $matches = foreach ($file in $sensitiveTextFiles) {
+        Select-String -LiteralPath $file.FullName -Pattern $pattern
+    }
     Assert-Condition `
         (-not $matches) `
         ("Forbidden path or sensitive marker found for pattern '$pattern':" +
@@ -112,7 +146,7 @@ foreach ($pattern in $forbiddenTextPatterns) {
 }
 
 $markdownFailures = @()
-Get-ChildItem -LiteralPath $root -Recurse -File -Filter '*.md' | ForEach-Object {
+$textFiles | Where-Object { $_.Extension -eq '.md' } | ForEach-Object {
     $document = $_.FullName
     $text = Get-Content -LiteralPath $document -Raw
     $markdownText = [regex]::Replace($text, '(?s)```.*?```', '')
@@ -143,7 +177,7 @@ Assert-Condition `
     ("Broken relative Markdown links:" + [Environment]::NewLine +
         ($markdownFailures -join [Environment]::NewLine))
 
-$powerShellFiles = Get-ChildItem -LiteralPath $root -Recurse -File -Filter '*.ps1'
+$powerShellFiles = $textFiles | Where-Object { $_.Extension -eq '.ps1' }
 foreach ($file in $powerShellFiles) {
     $tokens = $null
     $errors = $null
@@ -151,9 +185,8 @@ foreach ($file in $powerShellFiles) {
         $file.FullName, [ref]$tokens, [ref]$errors) | Out-Null
     if ($errors.Count -ne 0) {
         $parserMessages = $errors | ForEach-Object Message
-        throw ("PowerShell parser errors in $($file.FullName):" +
-            [Environment]::NewLine +
-            ($parserMessages -join [Environment]::NewLine))
+        throw ("PowerShell parser errors in $($file.RelativePath):" +
+            [Environment]::NewLine + ($parserMessages -join [Environment]::NewLine))
     }
 }
 
@@ -164,7 +197,7 @@ if ($RunHostTests) {
     }
 }
 
-Write-Host "PASS: canonical NIKINIKI repository validation"
+Write-Host 'PASS: canonical NIKINIKI repository validation'
 Write-Host "Root: $root"
-Write-Host "Checked source files: $($textFiles.Count)"
-Write-Host "Checked PowerShell files: $($powerShellFiles.Count)"
+Write-Host "Checked tracked source files: $($textFiles.Count)"
+Write-Host "Checked tracked PowerShell files: $($powerShellFiles.Count)"

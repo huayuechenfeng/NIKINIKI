@@ -30,13 +30,16 @@
 | `symbian/resources` | 字体、图片和资源许可证 |
 | `symbian/third_party` | 固定的必要源码、许可证及 FFmpeg 重建脚本 |
 | `tools/` | 主机工具、字体子集与公开仓库边界检查脚本 |
+| `prerequisites/Qt-4.7.403-for-Anna.sis`、`prerequisites/QtMobility-1.2.1-for-Anna.sis` | 唯一允许提交的 Qt 运行库 SIS；来源与哈希必须见 `NOTICE.md` |
 
 ## 必须排除
 
 - 根 `wiliwili/`、`library/`、`resources/` 以及 CMake/xmake/桌面主机构建系统；
 - `symbian/archive/` 失败实验源码快照；结论只通过 `docs/` 发布；
 - `symbian/out/`、根 `wiliwili_symbian/`、`*_currentcert/` 和 `.tmp/`；
-- `*.sis`、`*.sisx`、`*.exe`、`*.dll`、`*.lib`、`*.a`、`*.o`、`*.obj`；
+- 除 `prerequisites/Qt-4.7.403-for-Anna.sis` 和
+  `prerequisites/QtMobility-1.2.1-for-Anna.sis` 外的 `*.sis`，以及所有
+  `*.sisx`、`*.exe`、`*.dll`、`*.lib`、`*.a`、`*.o`、`*.obj`；
 - qmake/SBS/MOC/RCC/RSS/PKG 自动生成物和 SDK 镜像；
 - 证书、私钥、Cookie、账号数据、CODA 地址、设备转储及未经脱敏日志；
 - AI 附件、个人工作记录和本地编辑器配置；产品级 `AGENTS.md` 明确保留。
@@ -55,7 +58,8 @@
 
 ## GitHub Release
 
-源码仓库公开与 SIS 二进制发布是两个独立门槛。在 Nokia 603 完成最终验收、取得
-正确签名材料并准备 FFmpeg LGPL 静态重链接包后，GitHub Release 才可附加单一
-Release SIS、SHA-256、版本说明和重链接材料。Debug、unsigned、旧诊断候选和
-中间包不发布。
+源码仓库公开与 SIS 二进制发布是两个独立门槛。GitHub Release 必须同时提供正式
+Release SIS、SHA-256、版本说明和 FFmpeg LGPL 静态重链接材料。重链接材料可以
+包含未签名 SIS、对应产品源码快照、固定 FFmpeg 源码快照、许可证、校验清单与
+重建说明；它不得包含证书、私钥、账号资料或 SDK 构建目录。除该材料包中的
+未签名 SIS 外，Debug、旧诊断候选和中间包不发布。

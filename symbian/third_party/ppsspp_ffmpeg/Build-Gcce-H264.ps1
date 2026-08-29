@@ -1,8 +1,13 @@
 [CmdletBinding()]
 param(
     [string]$SourceDirectory,
-    [string]$SdkRoot = 'C:\QtSDK\Symbian\SDKs\SymbianSR1Qt474',
+    [string]$SdkRoot = 'C:\QtSDK\Symbian\SDKs\Symbian3Qt474',
     [string]$BuildDirectory,
+    [string]$GitBash,
+    [string]$MsysBash,
+    [string]$MakePath,
+    [string]$GcceBin,
+    [string]$ExpectedSourceCommit = 'b87f7c6d522d1edba77cfc4fac96ce48a236f806',
     [switch]$EnableArmAssembly,
     [switch]$Reconfigure
 )
@@ -21,6 +26,24 @@ if (-not $BuildDirectory) {
 $SourceDirectory = [IO.Path]::GetFullPath($SourceDirectory)
 $BuildDirectory = [IO.Path]::GetFullPath($BuildDirectory)
 $SdkRoot = [IO.Path]::GetFullPath($SdkRoot)
+$symbianRoot = Split-Path -Parent (Split-Path -Parent $SdkRoot)
+
+if (-not $GitBash) {
+    $GitBash = 'C:\Program Files\Git\bin\bash.exe'
+}
+if (-not $MsysBash) {
+    $MsysBash = 'C:\msys64\usr\bin\bash.exe'
+}
+if (-not $MakePath) {
+    $MakePath = Join-Path $symbianRoot 'tools\sbs\win32\mingw\bin\make.exe'
+}
+if (-not $GcceBin) {
+    $GcceBin = Join-Path $symbianRoot 'tools\gcce4\bin'
+}
+$GitBash = [IO.Path]::GetFullPath($GitBash)
+$MsysBash = [IO.Path]::GetFullPath($MsysBash)
+$MakePath = [IO.Path]::GetFullPath($MakePath)
+$GcceBin = [IO.Path]::GetFullPath($GcceBin)
 
 function Convert-ToBashPath([string]$Path) {
     $full = [IO.Path]::GetFullPath($Path).Replace('\', '/')
@@ -48,18 +71,28 @@ foreach ($required in @(
     }
 }
 
-$bash = 'C:\Program Files\Git\bin\bash.exe'
-$make = 'C:\QtSDK\Symbian\tools\sbs\win32\mingw\bin\make.exe'
-$msysBash = 'C:\msys64\usr\bin\bash.exe'
-$gcceBin = 'C:\QtSDK\Symbian\tools\gcce4\bin'
-$gitUsrBin = 'C:\Program Files\Git\usr\bin'
-foreach ($tool in @($bash, $make, (Join-Path $gcceBin 'arm-none-symbianelf-gcc.exe'))) {
+$git = Get-Command git -ErrorAction SilentlyContinue | Select-Object -First 1
+if (-not $git) {
+    throw 'Git is required to verify the pinned PPSSPP-FFmpeg source revision.'
+}
+$actualSourceCommit = (& $git.Source -C $SourceDirectory rev-parse HEAD).Trim()
+if ($LASTEXITCODE -ne 0 -or $actualSourceCommit -ne $ExpectedSourceCommit) {
+    throw "Unexpected PPSSPP-FFmpeg revision. Expected $ExpectedSourceCommit, got $actualSourceCommit."
+}
+$sourceStatus = & $git.Source -C $SourceDirectory status --porcelain
+if ($LASTEXITCODE -ne 0 -or $sourceStatus) {
+    throw 'PPSSPP-FFmpeg checkout must be clean before building release libraries.'
+}
+
+$gitRoot = Split-Path -Parent (Split-Path -Parent $GitBash)
+$gitUsrBin = Join-Path $gitRoot 'usr\bin'
+foreach ($tool in @($GitBash, $MakePath, (Join-Path $GcceBin 'arm-none-symbianelf-gcc.exe'))) {
     if (-not (Test-Path -LiteralPath $tool -PathType Leaf)) {
         throw "Required build tool is missing: $tool"
     }
 }
-if ($EnableArmAssembly -and -not (Test-Path -LiteralPath $msysBash -PathType Leaf)) {
-    throw "ARM assembly builds require the case-sensitive MSYS2 make driver: $msysBash"
+if ($EnableArmAssembly -and -not (Test-Path -LiteralPath $MsysBash -PathType Leaf)) {
+    throw "ARM assembly builds require the case-sensitive MSYS2 make driver: $MsysBash"
 }
 
 $ownedBuildRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'build'))
@@ -76,7 +109,8 @@ New-Item -ItemType Directory -Path $BuildDirectory -Force | Out-Null
 
 $sourceBash = Convert-ToBashPath $SourceDirectory
 $buildBash = Convert-ToBashPath $BuildDirectory
-$sdkBash = Convert-ToBashPath $SdkRoot
+$gcceBinBash = Convert-ToBashPath $GcceBin
+$makeBinBash = Convert-ToBashPath (Split-Path -Parent $MakePath)
 $sdkUnix = $SdkRoot.Replace('\', '/')
 $include = "$sdkUnix/epoc32/include"
 $cflags = @(
@@ -132,12 +166,12 @@ if ($EnableArmAssembly) {
 }
 
 if ($Reconfigure -or -not (Test-Path -LiteralPath (Join-Path $BuildDirectory 'config.mak'))) {
-    $bashPath = "/c/QtSDK/Symbian/tools/gcce4/bin:/c/QtSDK/Symbian/tools/sbs/win32/mingw:/usr/bin:/mingw64/bin:`$PATH"
+    $bashPath = "$gcceBinBash`:$makeBinBash`:/usr/bin:/mingw64/bin:`$PATH"
     $quotedArguments = ($arguments | ForEach-Object { Quote-Bash $_ }) -join ' '
     $command = "set -e; export PATH=" + (Quote-Bash $bashPath) +
         "; cd " + (Quote-Bash $buildBash) +
         "; " + (Quote-Bash "$sourceBash/configure") + " $quotedArguments"
-    & $bash -lc $command
+    & $GitBash -lc $command
     if ($LASTEXITCODE -ne 0) {
         throw "FFmpeg configure failed with exit code $LASTEXITCODE."
     }
@@ -165,24 +199,24 @@ if ($EnableArmAssembly) {
     $temporaryBash = Convert-ToBashPath $temporaryDirectory
     $buildCommand = @(
         'set -e',
-        'export PATH=/c/QtSDK/Symbian/tools/gcce4/bin:/usr/bin:$PATH',
+        "export PATH=$gcceBinBash`:/usr/bin:`$PATH",
         "export TMPDIR=$(Quote-Bash $temporaryBash)",
         'export TEMP=$TMPDIR',
         'export TMP=$TMPDIR',
         "cd $(Quote-Bash $buildBash)",
         'make -j2 libavcodec/libavcodec.a libavutil/libavutil.a'
     ) -join '; '
-    & $msysBash -lc $buildCommand
+    & $MsysBash -lc $buildCommand
     if ($LASTEXITCODE -ne 0) {
         throw "FFmpeg ARM assembly make failed with exit code $LASTEXITCODE."
     }
 } else {
     $previousPath = $env:PATH
     try {
-        $env:PATH = "$gcceBin;$gitUsrBin;$(Split-Path -Parent $make);$previousPath"
+        $env:PATH = "$GcceBin;$gitUsrBin;$(Split-Path -Parent $MakePath);$previousPath"
         Push-Location $BuildDirectory
         try {
-            & $make -j2 libavcodec/libavcodec.a libavutil/libavutil.a
+            & $MakePath -j2 libavcodec/libavcodec.a libavutil/libavutil.a
             if ($LASTEXITCODE -ne 0) {
                 throw "FFmpeg make failed with exit code $LASTEXITCODE."
             }
@@ -219,7 +253,7 @@ $licenseFiles = @(
 )
 Copy-Item -LiteralPath $licenseFiles -Destination $PSScriptRoot -Force
 
-$nm = Join-Path $gcceBin 'arm-none-symbianelf-nm.exe'
+$nm = Join-Path $GcceBin 'arm-none-symbianelf-nm.exe'
 $codecSymbols = & $nm -g --defined-only (Join-Path $libraryRoot 'libavcodec.a')
 foreach ($symbol in @('avcodec_find_decoder', 'avcodec_open2', 'avcodec_decode_video2', 'ff_h264_decoder')) {
     if (-not ($codecSymbols | Select-String -SimpleMatch $symbol)) {
@@ -243,4 +277,5 @@ if ($EnableArmAssembly) {
 }
 
 Write-Host "PPSSPP-FFmpeg H.264 GCCE artifacts: $PSScriptRoot"
+Write-Host "Verified PPSSPP-FFmpeg commit: $actualSourceCommit"
 Write-Host "ARM assembly enabled: $EnableArmAssembly"

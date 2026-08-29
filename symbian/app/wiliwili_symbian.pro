@@ -169,4 +169,12 @@ symbian {
                        $$SYMBIAN_ROOT/resources/font/LICENSE.txt
     cjk_font.path = /resource/apps/wiliwili_symbian
     DEPLOYMENT += cjk_font
+
+    # Make the product GPL notice and the statically linked FFmpeg LGPL text
+    # available on every installed device, alongside the existing font notice.
+    legal_notices.sources = $$SYMBIAN_ROOT/../LICENSE \
+                            $$SYMBIAN_ROOT/../NOTICE.md \
+                            $$SYMBIAN_ROOT/third_party/ppsspp_ffmpeg/COPYING.LGPLv2.1
+    legal_notices.path = /resource/apps/wiliwili_symbian/licenses
+    DEPLOYMENT += legal_notices
 }

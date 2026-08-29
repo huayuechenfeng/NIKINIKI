@@ -9,8 +9,9 @@
 |---|---|
 | 文件 | `symbian/out/releases/v1.0.0/NIKINIKI_1.0.0_release.sis` |
 | GitHub Release | [v1.0.0](https://github.com/huayuechenfeng/NIKINIKI/releases/tag/v1.0.0)，资产名 `NIKINIKI_1.0.0_release.sis` |
-| 大小 | 9,804,372 bytes |
-| SHA-256 | `49748F5B4061F1F3D776B9FA7275B0092F2BA75F9F46872AE2FF88BB2B641095` |
+| 重链接材料 | `NIKINIKI_1.0.0_relink_materials.zip`；包含未签名 SIS、产品源码快照、固定 FFmpeg 源码快照、许可证、校验和重建说明 |
+| 大小 | 9,827,892 bytes |
+| SHA-256 | `2CDF906D345E1E60F9833DAA0695D5172A1D36D75073BFD8548633381D9A6E98` |
 | 包版本 | 1.0.0 |
 | UID | `0xE000B100` |
 | 目标 | ARMv5 / GCCE 4.4.1 / `Symbian3Qt474` |
@@ -18,16 +19,16 @@
 
 未签名归档仅用于重签与 LGPL 重链接流程，不作为安装包：
 `symbian/out/releases/v1.0.0/NIKINIKI_1.0.0_release_unsigned.sis`，
-9,803,656 bytes，SHA-256
-`6A820D77649F50986A464FD292BA13940B9641A117F136CC92B2D9BB12D63813`。
+9,827,184 bytes，SHA-256
+`8ADC8FBE65F456A5CD66AF588DA610B0D973286073AB872F896636ECFA00F0C1`。
 
 ## 安装前置包
 
-仓库的 `prerequisites/` 目录保留由已安装 Symbian Anna SDK 提取的官方运行库；
-原版 Symbian³、Anna 可使用同一套运行库。下载地址如下：
+仓库的 `prerequisites/` 目录保留由已安装 Symbian Anna SDK 提取的运行库；
+原版 Symbian³、Anna 可使用同一套运行库。下载地址固定到本 Release tag：
 
-- [Qt 4.7.403 for Anna](https://raw.githubusercontent.com/huayuechenfeng/NIKINIKI/main/prerequisites/Qt-4.7.403-for-Anna.sis)，7,929,828 bytes，SHA-256 `E270767D363770B7CCFB3D3F1973BC9834F833BCCCD50A5441BDA82E6581B2CE`；
-- [Qt Mobility 1.2.1 for Anna](https://raw.githubusercontent.com/huayuechenfeng/NIKINIKI/main/prerequisites/QtMobility-1.2.1-for-Anna.sis)，2,475,460 bytes，SHA-256 `312DE62AA8CA99AE5B460F58F5B2FDB3E45A33935525DACD327C98B44E701065`。
+- [Qt 4.7.403 for Anna](https://raw.githubusercontent.com/huayuechenfeng/NIKINIKI/v1.0.0/prerequisites/Qt-4.7.403-for-Anna.sis)，7,929,828 bytes，SHA-256 `E270767D363770B7CCFB3D3F1973BC9834F833BCCCD50A5441BDA82E6581B2CE`；
+- [Qt Mobility 1.2.1 for Anna](https://raw.githubusercontent.com/huayuechenfeng/NIKINIKI/v1.0.0/prerequisites/QtMobility-1.2.1-for-Anna.sis)，2,475,460 bytes，SHA-256 `312DE62AA8CA99AE5B460F58F5B2FDB3E45A33935525DACD327C98B44E701065`。
 
 ## 构建与签名验收
 
@@ -38,6 +39,8 @@
 - E32 image 为 ARMV5、Soft VFP、非 Debuggable，模块版本 1.0；code link end 为 `0x00345FDC`，低于固定 data link address `0x00400000`；
 - 导入表包含 QtCore、QtGui、QtNetwork、QtOpenGL、QtMultimediaKit、MMF、DevVideo、RHTTP 和 GLES2，不含 Belle-only `cookiemanager.dll`；
 - SIS 包含主 EXE、AppArc 资源、MIF 图标、NIKINIKI CJK 字体和许可证；主 EXE 能力与 SIS 包头一致；
+- SIS 同时部署 GPL-3.0、`NOTICE.md` 和 FFmpeg `COPYING.LGPLv2.1` 至
+  `/resource/apps/wiliwili_symbian/licenses/`；
 - SDK 的 2009–2019 旧自签名已剥离，正式包由 `Qt Development Frameworks` 当前证书重签，证书有效期为 2026-08-24 至 2036-08-21；
 - host `mongoose_compat` JSON 测试通过 58/58。
 
