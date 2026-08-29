@@ -6,12 +6,12 @@ historical names remain unchanged for compatibility and traceability.
 
 ## Current status
 
-- Version 0.9.0 is the final Nokia 603 validation candidate: compatible AVC
+- Version 1.0.0 is the formal release: compatible AVC
   keeps the native MMF route; the known weighted/7-reference AVC template
   uses the on-phone PPSSPP-FFmpeg H.264 fallback with the existing CPU
   YUV420P→RGB565 renderer. The earlier GLES YUV420 renderer is retained only
   as historical research code and is no longer requested by normal playback.
-  See `../docs/RELEASE_0.9.0_ZH.md` for the current packages and
+  See `../docs/RELEASE_1.0.0_ZH.md` for the release package and
   `../docs/README_ZH.md` for the current development reading order.
 - The application source is self-contained under `symbian/`, and this NIKINIKI
   repository is the only product source of truth. The pinned wiliwili `yoga`

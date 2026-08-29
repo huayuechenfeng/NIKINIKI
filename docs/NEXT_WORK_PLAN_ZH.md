@@ -1,8 +1,8 @@
-# wiliwili for Symbian³ 0.9 最终验证工作计划
+# NIKINIKI 1.0 发布后工作计划
 
 > 更新日期：2026-08-29  
-> 开发基线：0.9.0 原生 MMF + 本机 FFmpeg 回退 + 原生横屏 + 独立不透明 RGB565 视频表面 + 上层单 ARGB UI/弹幕窗（新表面待真机验证）  
-> 当前 P0：`Symbian3Qt474` 统一包已在 Nokia 603 / Belle 实测正常；继续完成有效签名和 Belle 发布回归。原版 Symbian³ / Anna 兼容性转入公测收集，不动解码器，也不拆分应用包。  
+> 开发基线：1.0.0 正式 Release，原生 MMF + 本机 FFmpeg 回退 + 原生横屏 + 独立不透明 RGB565 视频表面 + 上层单 ARGB UI/弹幕窗
+> 当前工作：正式 SIS 已完成有效签名；继续原版 Symbian³ / Anna 公测、50 次 Release 重入、直播与外部播放器回退，不动已冻结解码器，也不拆分应用包。
 > 详细证据：`docs/PLAYER_0.7_CODEC_COMPATIBILITY_ZH.md`
 
 > 1.0 冻结规则：不再探索 BCM2727/BCM2763 硬解边界、SPS ref/DPB 伪装、DSA/post-processor 直显或受限 UI 变体。唯一保留的是已实现的只读 Broadcom header preflight：它不初始化或显示 DevVideo，只以真实 SPS/PPS + 首个同步 AU 的 `GetHeaderInformationL()` 结果选择 MMF 或本机软解。详见 `docs/PLAYER_1.0_DECODING_POLICY_ZH.md`。相关后续方向只记录在 `docs/POST_1.0_BCM2763_HWDEVICE_RESEARCH_ZH.md`、`docs/POST_1.0_H264_REFERENCE_DPB_RESEARCH_ZH.md` 与 `docs/POST_1.0_DEVVIDEO_DISPLAY_RESEARCH_ZH.md`，1.0 前不执行。
@@ -54,7 +54,7 @@
 
 ## 3. 验收顺序
 
-1. 恢复当前有效签名私钥或取得新证书，对同一个 `Symbian3Qt474` Release 产物签名；SDK 2009–2019 自签名包不作真机发布候选；
+1. 已完成：恢复当前有效签名材料，对 `Symbian3Qt474` Release 产物剥离 SDK 旧签名并重签为 1.0.0 正式 SIS；
 2. 在 Belle 上完成当前包的发布回归；用户已确认 Nokia 603 当前测试没有异常，先前黑屏/闪退是错包，禁止计入回归结果；
 3. 公测前为原版 Symbian³ 取得并核对可再分发的完整 Qt 4.7.4 / Qt Mobility 1.2.x 离线包；当前 SDK 只有 stub 和已失去服务端保障的 Smart Installer，不能作运行库。Anna 已有本机离线候选；
 4. 公测用户在原版 Symbian³、Anna 安装与 Belle 完全相同的应用 SIS，并回传系统版本、运行库版本和结果；
@@ -113,6 +113,7 @@
 
 | 配置 | 文件 | SHA-256 |
 |---|---|---|
+| Release 1.0.0（正式发布包） | `symbian/out/releases/v1.0.0/NIKINIKI_1.0.0_release.sis` | `49748F5B4061F1F3D776B9FA7275B0092F2BA75F9F46872AE2FF88BB2B641095` |
 | Release surfacepersist1 | `symbian/out/releases/v0.7.0/wiliwili_symbian_0.7.0_release_surfacepersist1_currentcert.sis` | `4BEBC2E8151FD688E4A7252E3DC86C89E3C562D5AB13DD4D8FFF5CF3DDD50190` |
 | Debug surfacepersist1 | `symbian/out/releases/v0.7.0/wiliwili_symbian_0.7.0_debug_surfacepersist1_currentcert.sis` | `78667C76978D27BCF331AE41C6A11A7B8921DCD4ED00854A2960515F2BB6DB0E` |
 | Release devvideoprobe1 | `symbian/out/releases/v0.7.0/wiliwili_symbian_0.7.0_release_devvideoprobe1_currentcert.sis` | `34D83F9F4D8AE4CAF8AA211A0EE9A4A1FE5886F934A822D77B9D81DC0A1450C0` |
@@ -122,7 +123,7 @@
 | Release codeccompat1（历史候选） | `symbian/out/releases/v0.7.0/wiliwili_symbian_0.7.0_release_codeccompat1_currentcert.sis` | `08C9F75DCD4025E2680B41B5A4B908BFF5439E06D46218C88A32047AA048B2D0` |
 | Debug codeccompat1（历史日志包） | `symbian/out/releases/v0.7.0/wiliwili_symbian_0.7.0_debug_codeccompat1_currentcert.sis` | `61F87FBE6B3A2B9D014CBC569C1F798733655E54C010577EB08EDE667D5EC9FA` |
 
-`surfacepersist1` 两份包是已确认可以重复播放的回归基线。`ffmpegsoft1` 已证明 libavcodec 能覆盖原故障码流，但约 2–3 fps，仅保留作纯 C 性能基线；`ffmpegsoft2` + CPU RGB565 已恢复为 0.9 主线，旧 GLES-YUV 包仅作历史性能证据。故障流 READY 应为 `ARM11_GENERIC_H264_RGB565_LUT2X2`；不要加入 `ffmpeglatedrop1`。`armsoftprobe1`、`codeccompat1` 与 `headercontrol1` 都是历史诊断证据。0.9 尚未通过用户最终覆盖和 50 次 Release 压力门槛。
+`surfacepersist1` 两份包是已确认可以重复播放的回归基线。`ffmpegsoft1` 已证明 libavcodec 能覆盖原故障码流，但约 2–3 fps，仅保留作纯 C 性能基线；`ffmpegsoft2` + CPU RGB565 已进入 1.0 主线，旧 GLES-YUV 包仅作历史性能证据。故障流 READY 应为 `ARM11_GENERIC_H264_RGB565_LUT2X2`；不要加入 `ffmpeglatedrop1`。`armsoftprobe1`、`codeccompat1` 与 `headercontrol1` 都是历史诊断证据。50 次 Release 压力测试继续作为发布后覆盖项。
 
 历史低帧率审计结论：CPU 与 GLES 均曾约 3 fps，40 ms overlay timer 本身不是 200–330 ms 固定节流；共同候选是 UI/WSERV repaint 与同步 `CVideoPlayerUtility2::PositionL()`。RGB565 路径随后改为先排队紧凑 YUV、由 `takeOutput()` 先做 stale/drop，再只转换选中的帧；单周期 position 去重也已完成。最新的 surface/500 ms 时钟方案见本文末尾，本轮仍不调整 decoder、network 或 catch-up 阈值。
 

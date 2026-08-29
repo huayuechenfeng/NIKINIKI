@@ -4,7 +4,7 @@
 #include <QtCore/QtGlobal>
 
 #ifndef WILIWILI_SYMBIAN_VERSION_STR
-#define WILIWILI_SYMBIAN_VERSION_STR "0.9.0"
+#define WILIWILI_SYMBIAN_VERSION_STR "1.0.0"
 #endif
 
 namespace wiliwili {

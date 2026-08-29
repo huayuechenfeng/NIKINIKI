@@ -9,7 +9,7 @@ build outputs and signing materials live in a separate sibling research
 repository. Treat that repository as read-only evidence during NIKINIKI product
 work. Never maintain or export a second editable copy of the product source.
 
-## Active 0.9 Checkpoint (updated 2026-08-29)
+## Active 1.0 Checkpoint (updated 2026-08-29)
 
 - Symbian application: `symbian/`;
 - documentation index: `docs/README_ZH.md`;
@@ -17,14 +17,15 @@ work. Never maintain or export a second editable copy of the product source.
 - immediate work order: `docs/NEXT_WORK_PLAN_ZH.md`;
 - resolved repeat-entry evidence: `docs/PLAYER_0.7_SECOND_ENTRY_CRASH_ANALYSIS_ZH.md`;
 - current media-compatibility evidence: `docs/PLAYER_0.7_CODEC_COMPATIBILITY_ZH.md`;
-- active pre-1.0 decoding policy: `docs/PLAYER_1.0_DECODING_POLICY_ZH.md`;
+- 1.0 decoding policy and retained fallback order: `docs/PLAYER_1.0_DECODING_POLICY_ZH.md`;
 - active software-decoder execution plan: `docs/PLAYER_1.0_SOFTWARE_DECODER_PLAN_ZH.md`;
 - deferred BCM2763/“BCM2727” firmware research: `docs/POST_1.0_BCM2763_HWDEVICE_RESEARCH_ZH.md`;
 - device verification history: `docs/DEVICE_TEST_MATRIX.md`;
-- release artifact details: `docs/RELEASE_0.9.0_ZH.md` (0.7 remains historical).
+- release artifact details: `docs/RELEASE_1.0.0_ZH.md` (0.9 and 0.7 remain historical).
 
 Current facts that later sessions must preserve:
 
+- on 2026-08-29 the user promoted the successfully built current mainline to the formal 1.0.0 release. The `Symbian3Qt474` GCCE Release build completed with `sbs errors: 0` and 32 existing warnings; the formal SIS is `symbian/out/releases/v1.0.0/NIKINIKI_1.0.0_release.sis`, 9,804,372 bytes, SHA-256 `49748F5B4061F1F3D776B9FA7275B0092F2BA75F9F46872AE2FF88BB2B641095`, signed by the current Qt Development Frameworks certificate valid 2026-08-24 through 2036-08-21;
 - 0.7 historically kept AVKON/QGL portrait and rotated only the MMF video `RWindow`; the 0.9 source now uses the device-verified native-landscape window state machine for both MMF and local FFmpeg playback;
 - the Nokia 603 has confirmed first-session horizontal picture, audio, danmaku over video, and clear controls/UI;
 - `KErrMMPartialPlayback (-12017)` is treated as recoverable and playback continues after track probing;
@@ -75,11 +76,11 @@ Current facts that later sessions must preserve:
 - the verified state machine is now merged into 0.9 mainline. `VideoPlayerWidget` is an independent persistent top-level; normal playback keeps the full `surfacepersist1` controller/video-host/MMF/overlay identities while switching native orientation. Normal main sets no `AA_S60DontConstructApplicationPanes`; MMF is configured with no rotation; the soft frame, danmaku, controls and input use direct native coordinates. GCCE Debug and Release both build with `sbs errors: 0`;
 - log `2746319` is the first integrated native-landscape mainline matrix: two FFmpeg-soft streams (one 640×360 and one 360×640-coded source) and two MMF `PROFILE_SKIP` streams all displayed correctly, returned cleanly, preserved native object identities, kept `overlayRotateMs=0`, and exited with code 0. The remaining soft bottleneck was the old full-screen ARGB video draw: about 155–179 ms/displayed frame with danmaku on and about 102 ms/frame for the portrait-coded soft source. This evidence is why the current source separates the opaque RGB565 video surface from the transparent UI/danmaku overlay. Decoder, queue, catch-up, network, RGB565 LUT and codec policy remain frozen before 1.0;
 
-The following signed test candidates are private research artifacts. Their paths
+The following older signed test candidates are private research artifacts. Their paths
 are relative to the sibling research repository and do not exist in the product
 checkout. Never publish or rebuild from them as the current release candidate.
 
-Current signed test candidates:
+Historical signed test candidates:
 
 - Release 0.9 mainline: `symbian/out/releases/v0.9.0/wiliwili_symbian_0.9.0_release_full_currentcert.sis`;
 - Debug 0.9 mainline: `symbian/out/releases/v0.9.0/wiliwili_symbian_0.9.0_debug_full_currentcert.sis`.

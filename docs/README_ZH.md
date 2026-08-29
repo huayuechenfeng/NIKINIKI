@@ -1,8 +1,8 @@
 # NIKINIKI（Symbian³）文档索引
 
 > 更新日期：2026-08-29  
-> 当前开发基线：0.9.0（`ffmpegsoft2`、CPU RGB565 与原生横屏状态机已合并主线，待主播放器真机最终验证）  
-> 当前 P0：`Symbian3Qt474` 统一包已在 Nokia 603 / Belle 实测正常；完成有效签名和 Belle 发布回归，原版 Symbian³ / Anna 转入公测收集
+> 当前开发基线：1.0.0 正式发布版（`ffmpegsoft2`、CPU RGB565 与原生横屏状态机已合并主线）
+> 当前状态：`Symbian3Qt474` Release 编译、打包和有效签名已通过；Nokia 603 / Belle 为已验证基线，原版 Symbian³ / Anna 转入公测收集
 
 NIKINIKI 是正式产品名；`wiliwili for Symbian³` / `wiliwili_symbian` 为曾用名、
 内部兼容名称和历史文档用名，不做机械删除。
@@ -21,8 +21,9 @@ NIKINIKI 是正式产品名；`wiliwili for Symbian³` / `wiliwili_symbian` 为�
 10. `PLAYER_0.7_SECOND_ENTRY_CRASH_ANALYSIS_ZH.md`：历史 A/B/C 结果与 `surfacepersist1` 已验证修复；
 11. `NEXT_WORK_PLAN_ZH.md`：软解、外部回退和压力验收顺序；
 12. `DEVICE_TEST_MATRIX.md`：所有已验证、失败和待验证项目；
-13. `RELEASE_0.9.0_ZH.md`：当前候选安装包、SHA-256、签名与验证清单；
-14. `RELEASE_0.7.0_ZH.md`：历史安装包、SHA-256、架构与已知问题。
+13. `RELEASE_1.0.0_ZH.md`：正式 Release SIS、SHA-256、签名与构建验收；
+14. `RELEASE_0.9.0_ZH.md`：历史候选安装包、签名与验证清单；
+15. `RELEASE_0.7.0_ZH.md`：历史安装包、SHA-256、架构与已知问题。
 
 如果其他文档与以上文件冲突，以阶段报告、1.0 解码政策和更新日期更晚的真机证据为准。
 
@@ -86,7 +87,8 @@ NIKINIKI 是正式产品名；`wiliwili for Symbian³` / `wiliwili_symbian` 为�
 
 | 配置 | 路径 |
 |---|---|
-| Release 0.9 mainline（当前最终验证包） | `symbian/out/releases/v0.9.0/wiliwili_symbian_0.9.0_release_full_currentcert.sis` |
+| Release 1.0.0（正式发布包） | `symbian/out/releases/v1.0.0/NIKINIKI_1.0.0_release.sis` |
+| Release 0.9 mainline（历史验证包） | `symbian/out/releases/v0.9.0/wiliwili_symbian_0.9.0_release_full_currentcert.sis` |
 | Debug 0.9 mainline（问题定位包） | `symbian/out/releases/v0.9.0/wiliwili_symbian_0.9.0_debug_full_currentcert.sis` |
 | Release codeccompat1（历史诊断候选） | `symbian/out/releases/v0.7.0/wiliwili_symbian_0.7.0_release_codeccompat1_currentcert.sis` |
 | Debug codeccompat1（历史日志包） | `symbian/out/releases/v0.7.0/wiliwili_symbian_0.7.0_debug_codeccompat1_currentcert.sis` |
@@ -95,4 +97,4 @@ NIKINIKI 是正式产品名；`wiliwili for Symbian³` / `wiliwili_symbian` 为�
 | Debug ffmpegsoft1（历史纯 C 基线：可出画面，约 2–3 fps） | `symbian/out/releases/v0.7.0/wiliwili_symbian_0.7.0_debug_ffmpegsoft1_currentcert.sis` |
 | Debug armsoftprobe1（历史失败候选） | `symbian/out/releases/v0.7.0/wiliwili_symbian_0.7.0_debug_armsoftprobe1_currentcert.sis` |
 
-`surfacepersist1` 是用户已确认可重复播放的 MMF 回归基线。0.9 当前源码将 `ffmpegsoft2` 和 CPU RGB565 输出设为普通构建默认，Qt Creator 不需要再额外加入 CONFIG；不要加入 `ffmpeglatedrop1`。旧 GLES-YUV 包仅作历史性能证据。`armsoftprobe1`、`codeccompat1`、`headercontrol1`、`devvideoprobe1` 和 `devvideosample1` 都只作历史诊断对照，不应再用于判断当前普通构建或 1.0 路线。
+`surfacepersist1` 是用户已确认可重复播放的 MMF 回归基线。1.0 当前源码将 `ffmpegsoft2` 和 CPU RGB565 输出设为普通构建默认，Qt Creator 不需要再额外加入 CONFIG；不要加入 `ffmpeglatedrop1`。旧 GLES-YUV 包仅作历史性能证据。`armsoftprobe1`、`codeccompat1`、`headercontrol1`、`devvideoprobe1` 和 `devvideosample1` 都只作历史诊断对照，不应再用于判断当前普通构建或 1.0 路线。

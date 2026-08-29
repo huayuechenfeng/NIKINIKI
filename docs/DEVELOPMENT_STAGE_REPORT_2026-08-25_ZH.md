@@ -1,7 +1,8 @@
 # wiliwili for Symbian³ 阶段性开发报告与接手指南
 
 > 记录日期：2026-08-25  
-> 当前源码版本：0.9.0（2026-08-28 原生横屏与 soft native surface 主线）  
+> 当前源码版本：1.0.0（2026-08-29 正式 Release 构建）
+> 发布补充（2026-08-29）：用户将本次成功编译的当前主线确定为 1.0 正式版。`Symbian3Qt474` / GCCE 4.4.1 Release 构建以 `sbs errors: 0`、32 条既有警告完成；SDK 旧签名已剥离，并使用有效期 2026-08-24 至 2036-08-21 的当前证书重签。正式产物、SHA-256 和静态验收见 `docs/RELEASE_1.0.0_ZH.md`。原版 Symbian³ / Anna 公测、Release 50 次重入和其他既有设备覆盖边界继续保留为已知后续项，不回写为已完成。
 > 当前结论（2026-08-29 更新）：原生横屏 app-shell 已通过 20 轮，主播放器又完成两条 FFmpeg soft、两条 MMF hardware 的四视频真机矩阵，横竖向编码、弹幕/UI、返回和无系统栏均正常。日志 `2746319` 证明旧 90° ARGB pass 已消失，但软解仍把 RGB565 画面绘入全屏透明 ARGB overlay，约耗费 102–179 ms/显示帧。当前源码已建立持久 opaque native RGB565 surface，单一 ARGB 顶层只绘制弹幕/控件；同时将 soft `PositionL()` 改为 500 ms 校准加倍速外推。发布构建已改为最低 `Symbian3Qt474`，移除唯一的 Belle-only CookieManager 后 Debug/Release 均以 32 条既有警告、`sbs errors: 0` 完成，确定采用一个应用 SIS 覆盖 Symbian³ / Anna / Belle。该最低 SDK 包已在 Nokia 603 / Belle 实测正常；先前黑屏/点击闪退报告来自错包，证据作废。原版 Symbian³ / Anna 转入公测收集，不作为当前发布前阻塞。`devvideodirectprobe1` 真机证明全屏 ARGB overlay 下 DSA DrawingRegion 为零，Phase B 未启动，故该显示路线在 1.0 前封存。用户的 SPS ref=7→3 fake 实验补强了“存在 SPS/DPB 准入门”的证据，但不能证明芯片真实 7-ref DPB 能力，也不改变 MMF→FFmpeg/CPU RGB565→外部播放器政策。解码器、queue、catch-up、Range、RGB565 LUT 和 1.0 前编码政策保持冻结。  
 > 文档定位：这是截至记录日期的开发现状“单一事实来源”。旧的版本说明保留作历史资料；若与本文冲突，以本文和更新的真机日志为准。
 
