@@ -21,8 +21,8 @@
 
 ## 下载 1.0
 
-- <a href="../../releases/tag/v1.0.0">NIKINIKI 1.0.0 GitHub Release（上传后开放）</a>
-- <a href="../../releases/download/v1.0.0/NIKINIKI_1.0.0_release.sis">直接下载正式 SIS（上传后开放）</a>
+- [NIKINIKI 1.0.0 GitHub Release](https://github.com/huayuechenfeng/NIKINIKI/releases/tag/v1.0.0)
+- [直接下载正式 SIS](https://github.com/huayuechenfeng/NIKINIKI/releases/download/v1.0.0/NIKINIKI_1.0.0_release.sis)
 - 正式资产文件名：`NIKINIKI_1.0.0_release.sis`
 - SHA-256：`49748F5B4061F1F3D776B9FA7275B0092F2BA75F9F46872AE2FF88BB2B641095`
 
@@ -46,6 +46,11 @@ Nokia 最终将三代系统所需的 Qt 运行环境统一；Qt 官方资料记�
 Qt-4.7.403-for-Anna.sis
 QtMobility-1.2.1-for-Anna.sis
 ```
+
+本仓库已收录 SDK 中的原始安装包，可直接下载：
+
+- [Qt-4.7.403-for-Anna.sis](https://raw.githubusercontent.com/huayuechenfeng/NIKINIKI/main/prerequisites/Qt-4.7.403-for-Anna.sis)
+- [QtMobility-1.2.1-for-Anna.sis](https://raw.githubusercontent.com/huayuechenfeng/NIKINIKI/main/prerequisites/QtMobility-1.2.1-for-Anna.sis)
 
 Belle 设备通常已经具备所需运行环境。若安装上述运行库和 TLS 1.2 补丁后仍出现
 网络异常，还可以尝试 [Qt TLS 补丁](https://nnproject.cc/qtls/)。

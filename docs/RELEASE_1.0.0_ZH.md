@@ -8,7 +8,7 @@
 | 项目 | 值 |
 |---|---|
 | 文件 | `symbian/out/releases/v1.0.0/NIKINIKI_1.0.0_release.sis` |
-| 未来 GitHub Release | tag `v1.0.0`，资产名 `NIKINIKI_1.0.0_release.sis` |
+| GitHub Release | [v1.0.0](https://github.com/huayuechenfeng/NIKINIKI/releases/tag/v1.0.0)，资产名 `NIKINIKI_1.0.0_release.sis` |
 | 大小 | 9,804,372 bytes |
 | SHA-256 | `49748F5B4061F1F3D776B9FA7275B0092F2BA75F9F46872AE2FF88BB2B641095` |
 | 包版本 | 1.0.0 |
@@ -20,6 +20,14 @@
 `symbian/out/releases/v1.0.0/NIKINIKI_1.0.0_release_unsigned.sis`，
 9,803,656 bytes，SHA-256
 `6A820D77649F50986A464FD292BA13940B9641A117F136CC92B2D9BB12D63813`。
+
+## 安装前置包
+
+仓库的 `prerequisites/` 目录保留由已安装 Symbian Anna SDK 提取的官方运行库；
+原版 Symbian³、Anna 可使用同一套运行库。下载地址如下：
+
+- [Qt 4.7.403 for Anna](https://raw.githubusercontent.com/huayuechenfeng/NIKINIKI/main/prerequisites/Qt-4.7.403-for-Anna.sis)，7,929,828 bytes，SHA-256 `E270767D363770B7CCFB3D3F1973BC9834F833BCCCD50A5441BDA82E6581B2CE`；
+- [Qt Mobility 1.2.1 for Anna](https://raw.githubusercontent.com/huayuechenfeng/NIKINIKI/main/prerequisites/QtMobility-1.2.1-for-Anna.sis)，2,475,460 bytes，SHA-256 `312DE62AA8CA99AE5B460F58F5B2FDB3E45A33935525DACD327C98B44E701065`。
 
 ## 构建与签名验收
 
