@@ -36,22 +36,7 @@
 所有设备都建议先安装 [TLS 1.2 补丁](https://nnproject.cc/tls/)，否则现代 HTTPS
 站点和哔哩哔哩接口可能无法正常连接。
 
-Symbian³ 原版和 Symbian Anna 还需要安装 **Qt 4.7.4 / Qt Mobility 1.2.1**。
-Nokia 最终将三代系统所需的 Qt 运行环境统一；Qt 官方资料记录如下：
-
-| 系统 | Qt | Qt Mobility |
-|---|---|---|
-| Symbian³ 原版 | **4.7.4 / 4.7.403** | **1.2.1** |
-| Symbian Anna | **4.7.4 / 4.7.403** | **1.2.1** |
-
-所谓 **“Qt 4.7.4 for Symbian Anna” target 实际同时支持 Symbian³、Anna、Belle**，
-并取代了以前的 Symbian³ Qt 4.7.3 target。需要寻找的离线安装文件是：
-
-```text
-Qt-4.7.403-for-Anna.sis
-QtMobility-1.2.1-for-Anna.sis
-```
-
+Symbian³ 原版和 Symbian Anna 还需要安装 **Qt 4.7.4 / Qt Mobility 1.2.1**，
 本仓库已收录 SDK 中的原始安装包，可直接下载：
 
 - [Qt-4.7.403-for-Anna.sis](https://raw.githubusercontent.com/huayuechenfeng/NIKINIKI/main/prerequisites/Qt-4.7.403-for-Anna.sis)
