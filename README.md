@@ -19,6 +19,11 @@
 >
 > 本项目与哔哩哔哩、Nokia 及上游 wiliwili 均无官方关联。
 
+## 开发说明
+
+本项目的开发过程中使用了 **vibecoding（AI 辅助编程）**。设计取舍、实机验证、
+构建与发布均由维护者确认。
+
 ## 下载 1.0
 
 - [NIKINIKI 1.0.0 GitHub Release](https://github.com/huayuechenfeng/NIKINIKI/releases/tag/v1.0.0)
