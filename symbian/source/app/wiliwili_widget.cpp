@@ -133,6 +133,54 @@ static int loadNanoVgFontWithQt(
     return fontId;
 }
 
+static int loadNanoVgFontResource(
+    NVGcontext *context,
+    const char *name,
+    const QString &path)
+{
+    if (!context || !name)
+        return -1;
+    QResource resource(path);
+    if (!resource.isValid() || resource.size() <= 0 ||
+        resource.size() > 32 * 1024 * 1024) {
+        return -1;
+    }
+    // resources.qrc stores this font uncompressed. Its backing bytes remain
+    // registered for the process lifetime, which matches NanoVG's freeData=0
+    // contract and avoids a 1.8 MB cold-start copy on the Symbian heap.
+    return nvgCreateFontMem(
+        context,
+        name,
+        const_cast<unsigned char *>(resource.data()),
+        static_cast<int>(resource.size()),
+        0);
+}
+
+static QStringList installedCjkFontPaths()
+{
+    QStringList paths;
+#ifdef Q_OS_SYMBIAN
+    const QString installedFontSubpath = QString::fromLatin1(
+        "/resource/apps/wiliwili_symbian/switch_font.ttf");
+    const QString executablePath = QApplication::applicationFilePath();
+    if (executablePath.size() >= 2 &&
+        executablePath.at(1) == QLatin1Char(':')) {
+        paths.append(executablePath.left(2) + installedFontSubpath);
+    }
+    const char installDrives[] = { 'C', 'E', 'F', 'D', 'G' };
+    int driveIndex;
+    for (driveIndex = 0;
+         driveIndex < static_cast<int>(sizeof(installDrives)); ++driveIndex) {
+        const QString path = QString::fromLatin1("%1:")
+                .arg(QLatin1Char(installDrives[driveIndex])) +
+            installedFontSubpath;
+        if (!paths.contains(path, Qt::CaseInsensitive))
+            paths.append(path);
+    }
+#endif
+    return paths;
+}
+
 static void appendFormField(
     QByteArray *form, const QByteArray &name, const QString &value)
 {
@@ -233,6 +281,9 @@ WiliwiliWidget::WiliwiliWidget(QWidget *parent)
       m_context(0),
       m_fontId(-1),
       m_cjkFontId(-1),
+      m_cjkFontFile(0),
+      m_cjkFontExpectedBytes(0),
+      m_cjkFontBytesRead(0),
       m_logoHandle(-1),
       m_cardPlaceholderHandle(-1),
       m_yuvProgram(0),
@@ -395,6 +446,11 @@ WiliwiliWidget::~WiliwiliWidget()
         m_searchEdit->removeEventFilter(this);
         delete m_searchEdit;
         m_searchEdit = 0;
+    }
+    if (m_cjkFontFile) {
+        m_cjkFontFile->close();
+        delete m_cjkFontFile;
+        m_cjkFontFile = 0;
     }
     delete m_videoPlayer;
     m_videoPlayer = 0;
@@ -985,22 +1041,17 @@ void WiliwiliWidget::timerEvent(QTimerEvent *event)
             m_startupPhase = 1;
             qDebug() << "WW:UI_READY" << m_fontId;
             updateGL();
+            qDebug() << "WW:STARTUP_UI_PRESENTED" << m_fontId;
             event->accept();
             return;
         }
 
         if (m_startupPhase == 1) {
-            m_homeScreen.setNetworkStatus(QString::fromLatin1("BI:FONT"));
-            loadCjkFallback();
+            // The bundled subset has already produced a real UI frame. Start
+            // normal work now; the complete 8 MB font is an optional fallback
+            // and must not hold the network or event loop behind cold storage.
+            beginCjkFallbackLoad();
             m_startupPhase = 2;
-            qDebug() << "WW:CJK_READY" << m_cjkFontId;
-            updateGL();
-            event->accept();
-            return;
-        }
-
-        killTimer(m_startupTimerId);
-        m_startupTimerId = 0;
 #if defined(WILIWILI_ENABLE_APP_LANDSCAPE_WINDOW_PROBE) || \
     defined(WILIWILI_ENABLE_DEVVIDEO_DIRECT_PROBE)
         // Keep the layer-2 experiment limited to the retained QGL main
@@ -1013,9 +1064,26 @@ void WiliwiliWidget::timerEvent(QTimerEvent *event)
         qDebug() << "WW:DIRECT_PROBE_NETWORK_SKIPPED";
 #endif
 #else
-        qDebug() << "WW:NETWORK_START";
-        startBilibiliFeed();
+            qDebug() << "WW:NETWORK_START";
+            startBilibiliFeed();
 #endif
+            if (!playerOwnsForeground())
+                updateGL();
+            event->accept();
+            return;
+        }
+
+        // Do not add storage I/O to MMF/FFmpeg startup or active playback.
+        // The open file and partial buffer remain valid and resume after the
+        // persistent player returns to the main window.
+        if (playerOwnsForeground() || !pumpCjkFallbackLoad()) {
+            event->accept();
+            return;
+        }
+
+        killTimer(m_startupTimerId);
+        m_startupTimerId = 0;
+        qDebug() << "WW:CJK_READY" << m_cjkFontId;
         if (!playerOwnsForeground())
             updateGL();
         event->accept();
@@ -1929,45 +1997,31 @@ void WiliwiliWidget::loadUiResources()
 
     makeCurrent();
 
-    // Prefer the complete deployed font, using the EXE's actual install drive
-    // followed by every practical Belle data drive.  The small compiled Qt
-    // resource is last and guarantees that a failed drive lookup cannot leave
-    // the entire NanoVG interface blank.
-    QStringList fontPaths;
-#ifdef Q_OS_SYMBIAN
-    const QString installedFontSubpath = QString::fromLatin1(
-        "/resource/apps/wiliwili_symbian/switch_font.ttf");
-    const QString executablePath = QApplication::applicationFilePath();
-    if (executablePath.size() >= 2 && executablePath.at(1) == QLatin1Char(':')) {
-        fontPaths.append(
-            executablePath.left(2) + installedFontSubpath);
-    }
-    const char installDrives[] = { 'C', 'E', 'F', 'D', 'G' };
-    int driveIndex;
-    for (driveIndex = 0;
-         driveIndex < static_cast<int>(sizeof(installDrives)); ++driveIndex) {
-        const QString path = QString::fromLatin1("%1:")
-                .arg(QLatin1Char(installDrives[driveIndex])) +
-            installedFontSubpath;
-        if (!fontPaths.contains(path, Qt::CaseInsensitive))
-            fontPaths.append(path);
-    }
-#endif
-    fontPaths.append(QString::fromLatin1(":/assets/switch_font.ttf"));
-    int fontPathIndex;
-    for (fontPathIndex = 0;
-         fontPathIndex < fontPaths.size(); ++fontPathIndex) {
-        const QString path = fontPaths.at(fontPathIndex);
-        const QFile candidate(path);
-        qDebug() << "WW:FONT_CANDIDATE" << fontPathIndex << path
-                 << candidate.exists() << candidate.size();
-        m_fontId = loadNanoVgFontWithQt(
-            m_context, "ui", path, &m_fontData);
-        if (m_fontId >= 0) {
-            m_cjkFontId = m_fontId;
-            qDebug() << "WW:PRIMARY_FONT_READY"
-                     << fontPathIndex << m_fontData.size();
-            break;
+    // The GB2312-plus bundled subset is the deterministic first-frame font.
+    // The complete deployed font is attached later as a fallback, in chunks,
+    // so a cold FAT read cannot turn the UI thread into a long black screen.
+    const QString bundledFontPath =
+        QString::fromLatin1(":/assets/switch_font.ttf");
+    m_fontId = loadNanoVgFontResource(
+        m_context, "ui", bundledFontPath);
+    if (m_fontId >= 0) {
+        qDebug() << "WW:PRIMARY_FONT_READY_BUNDLED" << bundledFontPath;
+    } else {
+        // A missing compiled resource indicates a broken package. Preserve a
+        // last-resort synchronous path so the interface can still render.
+        const QStringList fontPaths = installedCjkFontPaths();
+        int fontPathIndex;
+        for (fontPathIndex = 0;
+             fontPathIndex < fontPaths.size(); ++fontPathIndex) {
+            const QString path = fontPaths.at(fontPathIndex);
+            m_fontId = loadNanoVgFontWithQt(
+                m_context, "ui", path, &m_fontData);
+            if (m_fontId >= 0) {
+                m_cjkFontId = m_fontId;
+                qDebug() << "WW:PRIMARY_FONT_READY_INSTALLED_FALLBACK"
+                         << path << m_fontData.size();
+                break;
+            }
         }
     }
 
@@ -2003,34 +2057,97 @@ void WiliwiliWidget::loadUiResources()
     doneCurrent();
 }
 
-void WiliwiliWidget::loadCjkFallback()
+void WiliwiliWidget::beginCjkFallbackLoad()
 {
-    if (!m_context || m_cjkFontId >= 0)
+    if (!m_context || m_cjkFontId >= 0 || m_cjkFontFile)
         return;
 
-    const char *fontPaths[] = {
-        ":/assets/switch_font.ttf",
-        "C:/resource/apps/wiliwili_symbian/switch_font.ttf",
-        "E:/resource/apps/wiliwili_symbian/switch_font.ttf"
-    };
-    makeCurrent();
+    const QStringList fontPaths = installedCjkFontPaths();
     int pathIndex;
     for (pathIndex = 0;
-         pathIndex < static_cast<int>(sizeof(fontPaths) / sizeof(fontPaths[0]));
-         ++pathIndex) {
-        const QString path = QString::fromLatin1(fontPaths[pathIndex]);
-        m_cjkFontId = loadNanoVgFontWithQt(
-            m_context, "cjk", path, &m_fontData);
-        if (m_cjkFontId >= 0) {
-            if (m_fontId >= 0)
-                nvgAddFallbackFontId(m_context, m_fontId, m_cjkFontId);
-            qDebug() << "Loaded deferred CJK fallback font" << path;
-            break;
+         pathIndex < fontPaths.size(); ++pathIndex) {
+        QFile *file = new QFile(fontPaths.at(pathIndex));
+        if (!file->open(QIODevice::ReadOnly)) {
+            delete file;
+            continue;
         }
+        const qint64 size = file->size();
+        if (size <= 0 || size > 32 * 1024 * 1024) {
+            file->close();
+            delete file;
+            continue;
+        }
+        m_cjkFontData.resize(static_cast<int>(size));
+        m_cjkFontFile = file;
+        m_cjkFontExpectedBytes = size;
+        m_cjkFontBytesRead = 0;
+        m_cjkFontLoadClock.start();
+        qDebug() << "WW:CJK_FONT_LOAD_BEGIN"
+                 << file->fileName() << size << 256 * 1024;
+        return;
     }
+    qDebug() << "WW:CJK_FONT_LOAD_UNAVAILABLE";
+}
+
+bool WiliwiliWidget::pumpCjkFallbackLoad()
+{
+    if (m_cjkFontId >= 0 || !m_cjkFontFile)
+        return true;
+
+    const qint64 remaining =
+        m_cjkFontExpectedBytes - m_cjkFontBytesRead;
+    const qint64 chunkBytes = remaining < 256 * 1024
+        ? remaining : 256 * 1024;
+    const qint64 bytesRead = m_cjkFontFile->read(
+        m_cjkFontData.data() + static_cast<int>(m_cjkFontBytesRead),
+        chunkBytes);
+    if (bytesRead <= 0) {
+        qDebug() << "WW:CJK_FONT_LOAD_FAILED"
+                 << m_cjkFontFile->fileName()
+                 << m_cjkFontBytesRead << m_cjkFontExpectedBytes;
+        m_cjkFontFile->close();
+        delete m_cjkFontFile;
+        m_cjkFontFile = 0;
+        m_cjkFontData.clear();
+        return true;
+    }
+
+    m_cjkFontBytesRead += bytesRead;
+    if (m_cjkFontBytesRead < m_cjkFontExpectedBytes)
+        return false;
+
+    const QString fontPath = m_cjkFontFile->fileName();
+    m_cjkFontFile->close();
+    delete m_cjkFontFile;
+    m_cjkFontFile = 0;
+
+    QTime registrationClock;
+    registrationClock.start();
+    makeCurrent();
+    m_cjkFontId = nvgCreateFontMem(
+        m_context,
+        "cjk",
+        reinterpret_cast<unsigned char *>(m_cjkFontData.data()),
+        m_cjkFontData.size(),
+        0);
+    int fallbackAdded = 1;
+    if (m_cjkFontId >= 0 && m_fontId >= 0)
+        fallbackAdded = nvgAddFallbackFontId(
+            m_context, m_fontId, m_cjkFontId);
     doneCurrent();
-    if (m_cjkFontId < 0)
-        qDebug() << "CJK fallback font was not found or could not be loaded";
+
+    if (m_cjkFontId < 0) {
+        m_cjkFontData.clear();
+        qDebug() << "WW:CJK_FONT_REGISTER_FAILED" << fontPath;
+    } else if (!fallbackAdded) {
+        qDebug() << "WW:CJK_FONT_FALLBACK_LINK_FAILED" << fontPath;
+    } else {
+        qDebug() << "WW:CJK_FONT_LOAD_READY"
+                 << fontPath << m_cjkFontData.size()
+                 << m_cjkFontLoadClock.elapsed()
+                 << registrationClock.elapsed();
+    }
+    return true;
 }
 
 void WiliwiliWidget::clearDynamicImages()
