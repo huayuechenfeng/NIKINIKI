@@ -30,24 +30,15 @@
 - [NIKINIKI 1.0.0 GitHub Release](https://github.com/huayuechenfeng/NIKINIKI/releases/tag/v1.0.0)
 - [直接下载正式 SIS](https://github.com/huayuechenfeng/NIKINIKI/releases/download/v1.0.0/NIKINIKI_1.0.0_release.sis)
 - [LGPL 重链接材料](https://github.com/huayuechenfeng/NIKINIKI/releases/download/v1.0.0/NIKINIKI_1.0.0_relink_materials.zip)
-- 正式资产文件名：`NIKINIKI_1.0.0_release.sis`
-- SHA-256：`2CDF906D345E1E60F9833DAA0695D5172A1D36D75073BFD8548633381D9A6E98`
+
+安装包大小、SHA-256、签名和重链接材料清单见
+[1.0.0 发布说明](docs/releases/RELEASE_1.0.0_ZH.md)。
 
 ## 安装前置说明
 
-目前已知bug：初次启动后会长时间黑屏，可能原因是程序正在导入字体，请在黑屏状态下等待60秒，然后后台关闭程序，重新启动。如果还黑屏的话，重启手机并重复上述操作。正常启动一次后，就不会遇到类似问题。也可以等待明天修复。
-
-所有设备都建议先安装 [TLS 1.2 补丁](https://nnproject.cc/tls/)，否则现代 HTTPS
-站点和哔哩哔哩接口可能无法正常连接。
-
-Symbian³ 原版和 Symbian Anna 还需要安装 **Qt 4.7.4 / Qt Mobility 1.2.1**，
-本仓库已收录 SDK 中的原始安装包，可直接下载：
-
-- [Qt-4.7.403-for-Anna.sis](https://raw.githubusercontent.com/huayuechenfeng/NIKINIKI/v1.0.0/prerequisites/Qt-4.7.403-for-Anna.sis)
-- [QtMobility-1.2.1-for-Anna.sis](https://raw.githubusercontent.com/huayuechenfeng/NIKINIKI/v1.0.0/prerequisites/QtMobility-1.2.1-for-Anna.sis)
-
-Belle 设备通常已经具备所需运行环境。若安装上述运行库和 TLS 1.2 补丁后仍出现
-网络异常，还可以尝试 [Qt TLS 补丁](https://nnproject.cc/qtls/)。
+所有设备都建议安装 TLS 1.2 补丁；原版 Symbian³ 和 Anna 还需要 Qt 4.7.4 与
+Qt Mobility 1.2.x。完整顺序和运行库下载见[安装指南](docs/user/INSTALL_ZH.md)。
+首次启动黑屏、TLS 或播放问题见[故障排查](docs/user/TROUBLESHOOTING_ZH.md)。
 
 ## 开源与赞助
 
@@ -105,7 +96,7 @@ Belle 设备通常已经具备所需运行环境。Anna / 原版 Symbian³ 若�
 兼容的 **Qt 4.7.4** 与 **Qt Mobility 1.2.x**；项目不依赖已经停止服务的 Smart Installer。
 
 更详细的兼容策略见
-[Symbian³ / Anna / Belle 统一安装包说明](docs/SYMBIAN3_ANNA_BELLE_COMPATIBILITY_ZH.md)。
+[Symbian³ / Anna / Belle 统一安装包说明](docs/user/COMPATIBILITY_ZH.md)。
 
 ## 已知限制
 
@@ -121,38 +112,11 @@ Belle 设备通常已经具备所需运行环境。Anna / 原版 Symbian³ 若�
 - 原版 Symbian³ / Anna 的离线 Qt/Mobility 运行库仍需要更多真机验证；
 - B 站接口、登录流程和媒体 URL 都可能随服务端变化。
 
-### 关于 Nokia 603 的 Broadcom 解码器识别
-
-目前的真机探测存在一个值得继续研究的异常：Nokia 603 实际使用的多媒体处理器属于
-**BCM2763 / VideoCore IV** 一代，但 Symbian DevVideo 枚举出的 H.264 硬件解码器仍报告为
-**“Broadcom BCM2727”**，与 Nokia N8 一代的名称一致；同时，目前观察到的高 reference-frame
-码流兼容边界也与 N8 一代存在相似之处。
-
-这里暂时不能据此认定 603 实际使用了 BCM2727，也不能断言限制一定来自硬件本体。更可能的
-研究方向包括：Nokia/Broadcom 在 Symbian 上沿用了旧版 DevVideo/解码插件标识、能力表、缓冲
-策略或固件配置。另一方面，603 的实际软解与硬解性能都明显高于 N8，这也说明“插件报告名称”
-不能直接等同于真实芯片能力。该问题作为 1.0 后的独立底层研究方向继续保留。
-
 ## 1.0 之后
 
-1.0 的意义是先把一个完整、可使用、可继续演进的 Symbian B 站客户端发布出来，而不是
-等所有边角体验都打磨完。下一阶段会把**视频体验置于其他 UI polish 之前**。
-
-下一阶段优先级明确为：
-
-1. **软件视频性能：先把 Symbian³ 全系 360P 软件播放推进到稳定 20fps 以上；**
-   - Nokia 603：在 20fps 以上继续向稳定 30fps 攻坚；
-   - N8 一代：以稳定 20fps 为重点目标，针对较弱 ARM11 平台做专门优化；
-2. 复查 FFmpeg ARMv6/VFP/汇编优化是否真正生效，并建立 decode-only 性能基线；
-3. 评估 non-reference frame 自适应跳帧、追赶音频和稳定帧率策略；
-4. 评估 DevVideo PostProcessor 的 **memory-output YUV420→RGB565** 路线，在不牺牲
-   当前 UI/弹幕架构的前提下减少 CPU 色彩转换成本；
-5. 继续研究 BCM2727 / BCM2763 的 H.264 reference-frame / DPB 限制，但不让这条
-   高风险支线阻塞播放器体验优化；
-6. 字体大小、局部布局和其他 UI polish 在视频体验之后处理。
-
-当前技术研究记录见 [docs/](docs/README_ZH.md)。其中包含大量 0.x 阶段的实验、失败路径
-和真机日志结论；历史文档用于追溯，不一定代表当前默认实现。
+下一阶段优先建立 1.0 稳定性和软件视频性能基线，再处理外部播放器回退、更多系统覆盖和
+直播。当前优先级见[路线图](docs/ROADMAP_ZH.md)，当前技术结构见
+[开发文档](docs/README_ZH.md)；历史研究不代表默认实现。
 
 ## 构建
 
@@ -198,7 +162,7 @@ symbian\third_party\ppsspp_ffmpeg\Build-Gcce-H264.ps1 -EnableArmAssembly -Reconf
 行为比较和移植参考，不形成第二份产品主线。
 
 自研代码、上游快照与第三方依赖的精确边界见
-[代码边界分析](docs/CODE_BOUNDARY_ANALYSIS_ZH.md)。
+[代码边界分析](docs/reference/CODE_BOUNDARY_ANALYSIS_ZH.md)。
 
 ## 发布与贡献
 
@@ -213,7 +177,7 @@ GitHub 仓库只提交源码、文档、资源和可复现构建材料；Release
 证书、私钥和中间文件不公开。
 
 详细边界见
-[仓库整理与 GitHub 发布政策](docs/REPOSITORY_LAYOUT_AND_GITHUB_POLICY_ZH.md)。
+[仓库整理与 GitHub 发布政策](docs/developer/REPOSITORY_POLICY_ZH.md)。
 
 ## 许可证与致谢
 

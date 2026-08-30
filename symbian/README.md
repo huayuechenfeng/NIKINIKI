@@ -11,8 +11,8 @@ historical names remain unchanged for compatibility and traceability.
   uses the on-phone PPSSPP-FFmpeg H.264 fallback with the existing CPU
   YUV420P→RGB565 renderer. The earlier GLES YUV420 renderer is retained only
   as historical research code and is no longer requested by normal playback.
-  See `../docs/RELEASE_1.0.0_ZH.md` for the release package and
-  `../docs/README_ZH.md` for the current development reading order.
+  See `../docs/releases/RELEASE_1.0.0_ZH.md` for the release package and
+  `../docs/README_ZH.md` for the documentation entry points.
 - The application source is self-contained under `symbian/`, and this NIKINIKI
   repository is the only product source of truth. The pinned wiliwili `yoga`
   checkout and private device research live in a separate sibling repository.
@@ -30,9 +30,9 @@ historical names remain unchanged for compatibility and traceability.
   state machine waits for `workAreaResized()` and a physical 640x360 work area
   before showing the persistent player surface, then restores portrait on exit.
 
-See [`../docs/TOOLCHAIN_REPORT.md`](../docs/TOOLCHAIN_REPORT.md) for exact versions and missing components.
-See [`../docs/NEXT_WORK_PLAN_ZH.md`](../docs/NEXT_WORK_PLAN_ZH.md) for the current implementation plan and scope.
-See [`../docs/LIVE_PLAYBACK_ARCHITECTURE_ZH.md`](../docs/LIVE_PLAYBACK_ARCHITECTURE_ZH.md) for the upstream live-player analysis and the Belle compatibility strategy.
+See [`../docs/reference/TOOLCHAIN_REPORT.md`](../docs/reference/TOOLCHAIN_REPORT.md) for exact versions and missing components.
+See [`../docs/ROADMAP_ZH.md`](../docs/ROADMAP_ZH.md) for the current implementation plan and scope.
+See [`../docs/research/future/LIVE_PLAYBACK_ARCHITECTURE_ZH.md`](../docs/research/future/LIVE_PLAYBACK_ARCHITECTURE_ZH.md) for the historical upstream live-player analysis.
 
 ## 1. Bootstrap host tools
 
@@ -135,7 +135,7 @@ automatically. Do not add the diagnosis-only
 `CONFIG+=ffmpeglatedrop1` when producing a user package. The SDK's automatic SIS
 step uses its legacy self-signed certificate; for a distributable package,
 replace that signature with the current certificate as described in
-`docs/RELEASE_0.9.0_ZH.md`.
+`docs/releases/RELEASE_1.0.0_ZH.md`.
 
 ## SDK constraints
 

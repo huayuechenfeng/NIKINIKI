@@ -37,7 +37,7 @@ Debug 与 Release 均由 Belle Qt 4.7.4/GCCE 构建并以 `sbs errors: 0` 完成
 - 直播模式显示“直播中”，禁用进度拖动、快进退和倍速，保留播放/暂停、音量、
   清晰度、线路回退和返回。
 
-详细设计见 `docs/LIVE_PLAYBACK_ARCHITECTURE_ZH.md`。
+详细设计见 `docs/research/future/LIVE_PLAYBACK_ARCHITECTURE_ZH.md`。
 
 ## 回来后的 Qt Creator 操作
 

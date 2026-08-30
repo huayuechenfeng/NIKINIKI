@@ -1,5 +1,7 @@
 # 会话改动报告（2026-08-28）
 
+> 归档状态：Historical worklog。本文只记录当次会话，不是当前架构或任务清单。
+
 > 记录本会话对 `symbian/` Symbian³ 移植（NIKINIKI）的全部代码改动。  
 > 纯咨询产出（NIKINIKI 发布方案、mongoose 许可证分析、mongoose 使用边界审计）只形成结论，不在此列为代码改动，相关结论见第 9 节。
 
@@ -54,7 +56,7 @@
 
 ## 2. 代码边界文档
 
-- 新增 `docs/CODE_BOUNDARY_ANALYSIS_ZH.md`：自研代码与上游 wiliwili 代码的边界（目录归属、git 证据、跨边界复用清单、依赖方向、许可证、维护约定）；
+- 新增 `docs/reference/CODE_BOUNDARY_ANALYSIS_ZH.md`：自研代码与上游 wiliwili 代码的边界（目录归属、git 证据、跨边界复用清单、依赖方向、许可证、维护约定）；
 - `docs/README_ZH.md`：索引表登记该文档。
 
 ## 3. mongoose（GPL-2.0-only）替换
@@ -109,7 +111,7 @@ Qt 4.7 的 `QVector` 无 `takeLast()`（Qt 5 才有）。修复：`last()` + `re
 | `symbian/third_party/mongoose_compat/mg_json.c` | 新增 | 兼容层实现 |
 | `symbian/third_party/mongoose_compat/tests/mg_json_test.c` | 新增 | 独立测试 |
 | `symbian/third_party/mongoose_compat/tests/Run-Tests.ps1` | 新增 | 宿主测试脚本 |
-| `docs/CODE_BOUNDARY_ANALYSIS_ZH.md` | 新增 | 代码边界分析 |
+| `docs/reference/CODE_BOUNDARY_ANALYSIS_ZH.md` | 新增 | 代码边界分析 |
 | `docs/README_ZH.md` | 修改 | 索引登记 |
 | `docs/SESSION_CHANGES_2026-08-28_ZH.md` | 新增 | 本文档 |
 | `.gitignore` | 修改 | 兼容层测试产物忽略 |
@@ -125,7 +127,7 @@ Qt 4.7 的 `QVector` 无 `takeLast()`（Qt 5 才有）。修复：`last()` + `re
 
 1. 用户重新编译 Debug/Release（确认 `mg_json.c` 进入编译列表、三个 mongoose 源不再出现）；
 2. 真机回归所有走 7 个 parser 的页面（首页/搜索/详情/播放地址/评论/动态/消息/历史/收藏/关注/QR 登录），重点看特殊字符标题与空字段；
-3. `docs/CODE_BOUNDARY_ANALYSIS_ZH.md` 第 5 节仍把 mongoose 列为编译进 SIS 的组件，待编译验证后更新为“已由 `mongoose_compat` 替换”；
+3. `docs/reference/CODE_BOUNDARY_ANALYSIS_ZH.md` 第 5 节仍把 mongoose 列为编译进 SIS 的组件，待编译验证后更新为“已由 `mongoose_compat` 替换”；
 4. `symbian/reuse-manifest.yml` 中的早期映射路径与当前目录结构不一致，后续整理时同步（详见边界文档第 9 节）。
 
 ## 8. 构建/测试命令备忘

@@ -1,8 +1,14 @@
-# 历史文档归档
+# NIKINIKI 历史归档
 
-此目录保存已被后续实现替代、但仍具有追溯价值的材料。
+> 状态：Historical
+> 本目录内容不代表当前实现，也不进入新维护者必读顺序。
 
-- `release-notes/`：0.5 与 0.6 的实验发行说明；
-- 当前架构、产品决策和测试状态仍以 `../README_ZH.md` 所列的 0.7/0.9 与 1.0 前文档为准。
+## 归档内容
 
-归档文档不应被作为新会话的实现依据；如与阶段报告或较新的真机证据冲突，以后者为准。
+- `wiliwiliforsymbian3/`：旧阶段报告、早期总体设计和旧版 AGENTS 指南；
+- `worklogs/`：按开发会话形成的改动记录；
+- `plans/`：已被当前路线图或 ADR 取代的执行计划和冻结政策；
+- `release-notes/`：0.5.x–0.6.x 实验版本说明。
+
+当前事实见 `docs/STATUS_ZH.md`，当前计划见 `docs/ROADMAP_ZH.md`，当前架构见
+`docs/developer/`。历史名称 `wiliwili for Symbian³` 按原样保留，以便追踪代码、日志和旧包。

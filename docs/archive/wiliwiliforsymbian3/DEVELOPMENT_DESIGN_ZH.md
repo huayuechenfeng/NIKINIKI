@@ -1,11 +1,14 @@
 # wiliwili for Symbian³ 开发设计方案
 
+> 归档状态：Historical。本文保留早期移植设想，其中 Bridge、Qt Quick、旧播放器和里程碑内容
+> 已被后续实现取代。当前架构见 `docs/developer/ARCHITECTURE_ZH.md`。
+
 > 文档版本：0.2（上游优先复用版）  
 > 首要目标：Nokia 808 PureView / Belle FP2  
 > 次要目标：N8、C7、E7、C6-01 等 Symbian³/Anna/Belle 设备  
 > 本文中的 “Symbian³” 不指 S60 3rd Edition。
 
-> **2026-08-26 状态说明：**本文是早期总体设计，仍用于范围、上游复用和工程原则。实际开发设备已经以 Nokia 603 为主，播放器已演进为 0.7 原生 `CVideoPlayerUtility2`、固定系统竖屏、旋转视频 `RWindow` 和单 ARGB 弹幕层。1.0 前的最新策略是“MMF 硬解 → 本机软解 → 用户确认后调用外部播放器”，不再探索 BCM 硬解边界，也不采用本文早期提出的远端媒体 bridge/remux/transcode。接手前必须先阅读 `docs/README_ZH.md`、`docs/PLAYER_1.0_DECODING_POLICY_ZH.md` 与阶段报告。
+> **2026-08-26 状态说明：**本文是早期总体设计，仍用于范围、上游复用和工程原则。实际开发设备已经以 Nokia 603 为主，播放器已演进为 0.7 原生 `CVideoPlayerUtility2`、固定系统竖屏、旋转视频 `RWindow` 和单 ARGB 弹幕层。1.0 前的最新策略是“MMF 硬解 → 本机软解 → 用户确认后调用外部播放器”，不再探索 BCM 硬解边界，也不采用本文早期提出的远端媒体 bridge/remux/transcode。接手前必须先阅读 `docs/README_ZH.md`、`docs/archive/plans/PLAYER_1.0_DECODING_POLICY_ZH.md` 与阶段报告。
 
 ## 1. 方案摘要
 

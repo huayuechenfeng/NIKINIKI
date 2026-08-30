@@ -1,7 +1,8 @@
 # NIKINIKI 仓库整理与 GitHub 发布边界
 
-> 更新日期：2026-08-29  
-> 适用基线：NIKINIKI 0.9.0 Symbian³ 真机验证候选
+> 状态：Active
+> 更新日期：2026-08-30
+> 适用基线：NIKINIKI 1.0.0 与当前主线
 
 ## 单一产品主线与并列研究仓库
 
@@ -12,7 +13,7 @@
   可编辑产品主线，也不直接产生公开 Release。
 
 公开仓库不携带完整上游工作树，但必须保留 `LICENSE`、`NOTICE.md`、
-`docs/UPSTREAM_BASELINE.md`、`docs/CODE_BOUNDARY_ANALYSIS_ZH.md` 和
+`docs/reference/UPSTREAM_BASELINE.md`、`docs/reference/CODE_BOUNDARY_ANALYSIS_ZH.md` 和
 `symbian/reuse-manifest.yml`。
 
 ## 公开仓库允许清单
@@ -53,8 +54,9 @@
 3. JSON 兼容测试全部通过；
 4. `tools/Test-PublicRepository.ps1` 通过，且仓库没有危险扩展名、私钥标记、
    用户绝对路径和局域网端点；
-5. 所有第三方目录均有许可证和固定来源；
-6. 构建产物、测试记录和 Release 说明指向同一个公开 commit/tag。
+5. `tools/Test-Documentation.ps1` 通过，文档链接和活入口没有退回旧路径；
+6. 所有第三方目录均有许可证和固定来源；
+7. 构建产物、测试记录和 Release 说明指向同一个公开 commit/tag。
 
 ## GitHub Release
 

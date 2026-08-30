@@ -1,9 +1,12 @@
 # wiliwili for Symbian³ 阶段性开发报告与接手指南
 
-> 记录日期：2026-08-25  
+> 归档状态：Historical。本文保留 0.x 阶段的追加式开发记录，不再是当前事实来源。
+> 当前状态见 `docs/STATUS_ZH.md`；当前计划见 `docs/ROADMAP_ZH.md`；当前架构见 `docs/developer/`。
+
+> 记录日期：2026-08-25
 > 当前源码版本：1.0.0（2026-08-29 正式 Release 构建）
-> 发布补充（2026-08-29）：用户将本次成功编译的当前主线确定为 1.0 正式版。`Symbian3Qt474` / GCCE 4.4.1 Release 构建以 `sbs errors: 0`、32 条既有警告完成；SDK 旧签名已剥离，并使用有效期 2026-08-24 至 2036-08-21 的当前证书重签。正式产物、SHA-256 和静态验收见 `docs/RELEASE_1.0.0_ZH.md`。原版 Symbian³ / Anna 公测、Release 50 次重入和其他既有设备覆盖边界继续保留为已知后续项，不回写为已完成。
-> 当前结论（2026-08-29 更新）：原生横屏 app-shell 已通过 20 轮，主播放器又完成两条 FFmpeg soft、两条 MMF hardware 的四视频真机矩阵，横竖向编码、弹幕/UI、返回和无系统栏均正常。日志 `2746319` 证明旧 90° ARGB pass 已消失，但软解仍把 RGB565 画面绘入全屏透明 ARGB overlay，约耗费 102–179 ms/显示帧。当前源码已建立持久 opaque native RGB565 surface，单一 ARGB 顶层只绘制弹幕/控件；同时将 soft `PositionL()` 改为 500 ms 校准加倍速外推。发布构建已改为最低 `Symbian3Qt474`，移除唯一的 Belle-only CookieManager 后 Debug/Release 均以 32 条既有警告、`sbs errors: 0` 完成，确定采用一个应用 SIS 覆盖 Symbian³ / Anna / Belle。该最低 SDK 包已在 Nokia 603 / Belle 实测正常；先前黑屏/点击闪退报告来自错包，证据作废。原版 Symbian³ / Anna 转入公测收集，不作为当前发布前阻塞。`devvideodirectprobe1` 真机证明全屏 ARGB overlay 下 DSA DrawingRegion 为零，Phase B 未启动，故该显示路线在 1.0 前封存。用户的 SPS ref=7→3 fake 实验补强了“存在 SPS/DPB 准入门”的证据，但不能证明芯片真实 7-ref DPB 能力，也不改变 MMF→FFmpeg/CPU RGB565→外部播放器政策。解码器、queue、catch-up、Range、RGB565 LUT 和 1.0 前编码政策保持冻结。  
+> 发布补充（2026-08-29）：用户将本次成功编译的当前主线确定为 1.0 正式版。`Symbian3Qt474` / GCCE 4.4.1 Release 构建以 `sbs errors: 0`、32 条既有警告完成；SDK 旧签名已剥离，并使用有效期 2026-08-24 至 2036-08-21 的当前证书重签。正式产物、SHA-256 和静态验收见 `docs/releases/RELEASE_1.0.0_ZH.md`。原版 Symbian³ / Anna 公测、Release 50 次重入和其他既有设备覆盖边界继续保留为已知后续项，不回写为已完成。
+> 当前结论（2026-08-29 更新）：原生横屏 app-shell 已通过 20 轮，主播放器又完成两条 FFmpeg soft、两条 MMF hardware 的四视频真机矩阵，横竖向编码、弹幕/UI、返回和无系统栏均正常。日志 `2746319` 证明旧 90° ARGB pass 已消失，但软解仍把 RGB565 画面绘入全屏透明 ARGB overlay，约耗费 102–179 ms/显示帧。当前源码已建立持久 opaque native RGB565 surface，单一 ARGB 顶层只绘制弹幕/控件；同时将 soft `PositionL()` 改为 500 ms 校准加倍速外推。发布构建已改为最低 `Symbian3Qt474`，移除唯一的 Belle-only CookieManager 后 Debug/Release 均以 32 条既有警告、`sbs errors: 0` 完成，确定采用一个应用 SIS 覆盖 Symbian³ / Anna / Belle。该最低 SDK 包已在 Nokia 603 / Belle 实测正常；先前黑屏/点击闪退报告来自错包，证据作废。原版 Symbian³ / Anna 转入公测收集，不作为当前发布前阻塞。`devvideodirectprobe1` 真机证明全屏 ARGB overlay 下 DSA DrawingRegion 为零，Phase B 未启动，故该显示路线在 1.0 前封存。用户的 SPS ref=7→3 fake 实验补强了“存在 SPS/DPB 准入门”的证据，但不能证明芯片真实 7-ref DPB 能力，也不改变 MMF→FFmpeg/CPU RGB565→外部播放器政策。解码器、queue、catch-up、Range、RGB565 LUT 和 1.0 前编码政策保持冻结。
 > 文档定位：这是截至记录日期的开发现状“单一事实来源”。旧的版本说明保留作历史资料；若与本文冲突，以本文和更新的真机日志为准。
 
 ## 1. 项目目标
@@ -88,9 +91,9 @@
 - Qt Creator：2.4.1；
 - 目标：ARMv5，Debug 为 `arm.v5.udeb.gcce4_4_1`，Release 为 `arm.v5.urel.gcce4_4_1`。
 
-完整工具链调查见 `docs/TOOLCHAIN_REPORT.md`。
+完整工具链调查见 `docs/reference/TOOLCHAIN_REPORT.md`。
 
-统一包的 ABI 审计、运行库前置和三系统验证矩阵见 `docs/SYMBIAN3_ANNA_BELLE_COMPATIBILITY_ZH.md`。构建目标下沉不会改变播放器或软硬解策略；原版 Symbian³ / Anna 缺少 Qt 4.7.4 或 Qt Mobility 1.2.x 时，应先离线安装运行库，而不是改用另一套应用二进制。
+统一包的 ABI 审计、运行库前置和三系统验证矩阵见 `docs/user/COMPATIBILITY_ZH.md`。构建目标下沉不会改变播放器或软硬解策略；原版 Symbian³ / Anna 缺少 Qt 4.7.4 或 Qt Mobility 1.2.x 时，应先离线安装运行库，而不是改用另一套应用二进制。
 
 ### 3.3 应用标识和能力
 
@@ -111,7 +114,7 @@
 - 版本主题：`Release version v1.6.0`；
 - 许可证：GPL-3.0。
 
-详细基线见 `docs/UPSTREAM_BASELINE.md`。
+详细基线见 `docs/reference/UPSTREAM_BASELINE.md`。
 
 ### 4.1 已直接或等价复用的成果
 
@@ -181,7 +184,7 @@ AVKON 应用 / Qt 主窗口
 | `symbian/app/resources.qrc` | 图标、占位图、内置精简字体 |
 | `resources/font/switch_font.ttf` | SIS 安装的完整动态中文字体 |
 | `wiliwili/` | 用于对照的上游源码快照 |
-| `docs/PLAYER_0.7_SECOND_ENTRY_CRASH_ANALYSIS_ZH.md` | 第二次进入 data abort 的最新证据、CODA 判读和下一轮调查边界 |
+| `docs/research/player/PLAYER_0.7_SECOND_ENTRY_CRASH_ANALYSIS_ZH.md` | 第二次进入 data abort 的最新证据、CODA 判读和下一轮调查边界 |
 
 ## 6. 开发历程
 
@@ -288,7 +291,7 @@ QPainter::begin: Paint device returned engine == 0, type: 1
 - Qt Creator/CODA 把 Symbian exception/panic 通用映射为 GDB `SIGSEGV`。用户随后确认 Release、Debug 从手机独立启动同样崩溃，CODA 和 UDEB-only 均已排除；packet-size 协商和共享库符号警告不是根因；
 - 第一候选把 ARGB 覆盖窗改为主应用拥有的持久实例，每个 one-shot MMF 会话仅 attach/detach owner；但 Nokia 603 真机确认 `overlayreuse1` 第二次播放仍会卡死退出，因此仅覆盖窗重建已排除为充分原因；
 - 当前 `surfacepersist1` 让 `VideoPlayerWidget`、native video host `QWidget/CCoeControl/RWindow`、`VideoPlaybackBackend` observer、`CVideoPlayerUtility2` 和 ARGB overlay 全部存活到应用退出。播放退出只停止、解绑和隐藏；下一次在同一 utility 上 `Close` 旧媒体后重新 `OpenUrlL/OpenFileL`；
-- 修复后的 Debug/Release 均为 `sbs errors: 0`，对象文件已核对复用标记，`surfacepersist1` SIS 已使用 2026—2036 有效证书重签；用户随后确认可以退出后再次播放。完整历史证据见 `docs/PLAYER_0.7_SECOND_ENTRY_CRASH_ANALYSIS_ZH.md`。
+- 修复后的 Debug/Release 均为 `sbs errors: 0`，对象文件已核对复用标记，`surfacepersist1` SIS 已使用 2026—2036 有效证书重签；用户随后确认可以退出后再次播放。完整历史证据见 `docs/research/player/PLAYER_0.7_SECOND_ENTRY_CRASH_ANALYSIS_ZH.md`。
 
 ## 7. 0.6.12 最后失败的根因分析（历史基线）
 
@@ -386,13 +389,13 @@ CODA 可直接推送/运行 EXE，但手机图标依赖 SIS 中的 AppArc 注册
 
 ### P0：必须先解决
 
-1. **媒体编码兼容范围**  
-   `surfacepersist1` 已解决确定性的第二次进入崩溃。对照实验已经证明 BCM2727 能解析正常流，却在同样 API/Annex-B/MMF 已关闭条件下拒绝 7/4/7/weighted 风险模板，因此旧 `codeccompat1` 链路不能成为正式兼容后端。1.0 前停止扩大硬解边界：ARM `0x102073EF` 只作为本机软件 decoder 候选，失败则实现本机 360P 软件解码；内置软解仍失败时允许用户确认后调用外部播放器。默认源码保留 MMF AAC，并用显式宏隔离旧 BCM 实验。不使用桥接或远端转码。详见 `docs/PLAYER_1.0_DECODING_POLICY_ZH.md`。
+1. **媒体编码兼容范围**
+   `surfacepersist1` 已解决确定性的第二次进入崩溃。对照实验已经证明 BCM2727 能解析正常流，却在同样 API/Annex-B/MMF 已关闭条件下拒绝 7/4/7/weighted 风险模板，因此旧 `codeccompat1` 链路不能成为正式兼容后端。1.0 前停止扩大硬解边界：ARM `0x102073EF` 只作为本机软件 decoder 候选，失败则实现本机 360P 软件解码；内置软解仍失败时允许用户确认后调用外部播放器。默认源码保留 MMF AAC，并用显式宏隔离旧 BCM 实验。不使用桥接或远端转码。详见 `docs/archive/plans/PLAYER_1.0_DECODING_POLICY_ZH.md`。
 
-2. **播放器压力稳定性**  
+2. **播放器压力稳定性**
    用户已确认可以重复播放，但 Release 50 次正式循环仍未完成。继续记录相同对象地址、残留透明窗、后台声音和内存增长，不再把确定性的第二次进入崩溃列为未修复状态。
 
-3. **覆盖层长期稳定性**  
+3. **覆盖层长期稳定性**
    单 ARGB 窗口、弹幕和清晰 UI 已首次真机通过；仍需验证长时间播放、控制栏反复隐藏、弹幕密集场景、前后台切换和内存峰值。
 
 ### P1：主功能缺口
@@ -418,7 +421,7 @@ CODA 可直接推送/运行 EXE，但手机图标依赖 SIS 中的 AppArc 注册
 
 0.6.12 报告提出的首选路线已经由 0.7 实现并得到首次真机成功结果：应用始终保持 360×640 竖屏坐标；遇到横屏视频时，只把视频内容、播放器 UI 和输入坐标旋转 90°，用户把手机横过来观看。以下 10.1 记录正式架构依据；10.2—10.7 保留为历史备选，不应在 0.7 主路线回归完成前启动。
 
-横屏切换导致界面消失/回到系统菜单、以及 soft decoder 的旋转性能影响，详见 `docs/PLAYER_ORIENTATION_PROBLEM_AND_WORKAROUND_ZH.md`。该专题也记录了真实横屏实验的闪退结论和后续路线 A/B；本节的 portrait+virtual 架构仍是当前主线。
+横屏切换导致界面消失/回到系统菜单、以及 soft decoder 的旋转性能影响，详见 `docs/research/player/PLAYER_ORIENTATION_PROBLEM_AND_WORKAROUND_ZH.md`。该专题也记录了真实横屏实验的闪退结论和后续路线 A/B；本节的 portrait+virtual 架构仍是当前主线。
 
 ### 10.1 正式路线：固定竖屏窗口，MMF 视频旋转 90°
 
@@ -614,7 +617,7 @@ Qt Mobility `QVideoWidget` 公共 API 没有 rotation 属性，只暴露全屏�
 
 接手后建议严格按顺序执行：
 
-1. 先阅读 `docs/PLAYER_1.0_SOFTWARE_DECODER_PLAN_ZH.md` 和 `docs/PLAYER_0.7_CODEC_COMPATIBILITY_ZH.md`；不要把 `headercontrol1`、`codeccompat1` 或旧 BCM 诊断包当成正式基线；
+1. 先阅读 `docs/research/player/PLAYER_1.0_SOFTWARE_DECODER_PLAN_ZH.md` 和 `docs/research/player/PLAYER_0.7_CODEC_COMPATIBILITY_ZH.md`；不要把 `headercontrol1`、`codeccompat1` 或旧 BCM 诊断包当成正式基线；
 2. 用当前源码重新构建 Debug/CODA 或用户包，验证故障样本从 `PLAYER_SOURCE_DEFER_MMF` 进入本机 FFmpeg，日志应出现 `FFMPEG_SOFT_READY ... RGB565_LUT2X2`；不要以启动期 `GLES_YUV_READY` 判断当前路径；
 3. 用原故障样本至少播放 30 秒，保存 `FFMPEG_SOFT_READY/TIMING/CATCHUP/PROGRESS`，记录体感帧率、音画同步、pause/seek 和 UI 响应；正常样本应继续 `PROFILE_SKIP`/MMF；
 4. 若 CPU RGB565 软解实测仍低于可接受门槛，按既定政策保留兼容实现并转入外部播放器回退设计，不再恢复 BCM/系统 ARM 硬解探索；
@@ -723,17 +726,17 @@ Qt Creator 操作要点：
 ## 15. 历史文档关系
 
 - `docs/README_ZH.md`：新会话的文档索引和推荐阅读顺序；
-- `docs/DEVELOPMENT_DESIGN_ZH.md`：最初总体设计，部分规划仍适用；
-- `docs/NEXT_WORK_PLAN_ZH.md`：0.7 当前执行顺序和验收门槛；
-- `docs/DEVICE_TEST_MATRIX.md`：从早期里程碑到 0.7 的真机/构建矩阵；
-- `docs/PLAYER_0.7_SECOND_ENTRY_CRASH_ANALYSIS_ZH.md`：二次进入证据、失败候选与 `surfacepersist1` 真机修复结论；
-- `docs/PLAYER_0.7_CODEC_COMPATIBILITY_ZH.md`：当前有声无画样本、实流参数、已排除路径和兼容回退设计；
-- `docs/PLAYER_1.0_DECODING_POLICY_ZH.md`：1.0 前强制采用的 MMF → 本机软解 → 外部播放器路线；
-- `docs/PLAYER_1.0_SOFTWARE_DECODER_PLAN_ZH.md`：系统 ARM 失败证据、PPSSPP-FFmpeg 当前实现、PTS 基础、性能优化和止损门槛；
-- `docs/PLAYER_ORIENTATION_PROBLEM_AND_WORKAROUND_ZH.md`：原生横屏根因、最终 20 轮证据、主线状态机和旧 90° 路径移除范围；
-- `docs/POST_1.0_BCM2763_HWDEVICE_RESEARCH_ZH.md`：BCM2763 与 “BCM2727” HwDevice 谜题，仅供 1.0 后固件研究；
-- `docs/PORTING_AUDIT.md`：移植边界审计；
-- `docs/LIVE_PLAYBACK_ARCHITECTURE_ZH.md`：直播思路，尚未经过稳定播放器验证；
+- `docs/archive/wiliwiliforsymbian3/DEVELOPMENT_DESIGN_ZH.md`：最初总体设计，部分规划仍适用；
+- `docs/archive/plans/NEXT_WORK_PLAN_2026-08-29_ZH.md`：0.7 当前执行顺序和验收门槛；
+- `docs/reference/DEVICE_TEST_MATRIX.md`：从早期里程碑到 0.7 的真机/构建矩阵；
+- `docs/research/player/PLAYER_0.7_SECOND_ENTRY_CRASH_ANALYSIS_ZH.md`：二次进入证据、失败候选与 `surfacepersist1` 真机修复结论；
+- `docs/research/player/PLAYER_0.7_CODEC_COMPATIBILITY_ZH.md`：当前有声无画样本、实流参数、已排除路径和兼容回退设计；
+- `docs/archive/plans/PLAYER_1.0_DECODING_POLICY_ZH.md`：1.0 前强制采用的 MMF → 本机软解 → 外部播放器路线；
+- `docs/research/player/PLAYER_1.0_SOFTWARE_DECODER_PLAN_ZH.md`：系统 ARM 失败证据、PPSSPP-FFmpeg 当前实现、PTS 基础、性能优化和止损门槛；
+- `docs/research/player/PLAYER_ORIENTATION_PROBLEM_AND_WORKAROUND_ZH.md`：原生横屏根因、最终 20 轮证据、主线状态机和旧 90° 路径移除范围；
+- `docs/research/player/post-1.0/POST_1.0_BCM2763_HWDEVICE_RESEARCH_ZH.md`：BCM2763 与 “BCM2727” HwDevice 谜题，仅供 1.0 后固件研究；
+- `docs/reference/PORTING_AUDIT.md`：移植边界审计；
+- `docs/research/future/LIVE_PLAYBACK_ARCHITECTURE_ZH.md`：直播思路，尚未经过稳定播放器验证；
 - `docs/RELEASE_*.md`：每次实验当时的预期，不等于事后真机结论；
 - 本文：截至 2026-08-25 的事后结论和下一阶段入口。
 

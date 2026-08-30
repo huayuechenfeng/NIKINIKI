@@ -1,5 +1,8 @@
 # 播放器原生横屏问题、根因与主线方案
 
+> 文档状态：Historical evidence。当前状态机见 `docs/developer/PLAYBACK_ARCHITECTURE_ZH.md`，
+> 长期决定见 `docs/decisions/0001-native-landscape.md`。
+
 > 更新日期：2026-08-28  
 > 适用基线：Symbian³ 0.9 主线；原生横屏主播放器已完成四视频验证，独立 soft RGB565 表面待真机验证
 

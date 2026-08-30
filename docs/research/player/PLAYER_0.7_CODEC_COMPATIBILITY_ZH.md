@@ -1,5 +1,7 @@
 # 0.7 播放器 H.264 兼容性证据与实现状态
 
+> 文档状态：Historical evidence。当前选路见 `docs/developer/PLAYBACK_ARCHITECTURE_ZH.md`。
+
 > 记录日期：2026-08-25，最新更新：2026-08-28  
 > 状态：BCM2727 已被真机证明拒绝故障码流；系统 ARM decoder 在 `ConfigureDecoderL()` 返回 `KErrNotSupported (-5)` 后已废止；`ffmpegsoft1` 已解出原有声无画视频。`ffmpegsoft2` 的 CPU RGB565 优化达到约 11.4–12.0 fps，late-drop 已关闭；GLES-YUV 候选已在真机测得约 216 ms/帧上传并退役，当前恢复 CPU RGB565 默认输出。  
 > 产品约束：全部解码、同步和显示均在手机本机完成，不使用桥接、远端重封装或远端转码
@@ -101,7 +103,7 @@ Bilibili progressive MP4
 
 默认构建不再尝试已知必败的 BCM 接管：风险模板识别完成后立即结束 Range 探测，让原 MMF 会话继续提供可用的 AAC，并显示 `AUDIO` 状态。这样不会再重现 `headercontrol1` 对所有视频数秒后关停的问题。
 
-在历史 0.7 构建中，“保留音频”是安全行为，不冒充完整兼容。`ffmpegsoft1` 已在 Nokia 603 真机把原故障码流解出画面，证明 FFmpeg 3.0.2 H.264 decoder、MP4 sample、时间戳和 overlay 出口均能工作；但用户观察只有约 2–3 fps，因此该版本只作为兼容性/纯 C 性能基线。0.9 已将优化后的 `ffmpegsoft2` 合并主线，风险模板现在按本机 FFmpeg 路由，当前签名包和限制见 `docs/RELEASE_0.9.0_ZH.md`。
+在历史 0.7 构建中，“保留音频”是安全行为，不冒充完整兼容。`ffmpegsoft1` 已在 Nokia 603 真机把原故障码流解出画面，证明 FFmpeg 3.0.2 H.264 decoder、MP4 sample、时间戳和 overlay 出口均能工作；但用户观察只有约 2–3 fps，因此该版本只作为兼容性/纯 C 性能基线。0.9 已将优化后的 `ffmpegsoft2` 合并主线，风险模板现在按本机 FFmpeg 路由，当前签名包和限制见 `docs/releases/RELEASE_0.9.0_ZH.md`。
 
 ## 4. 关键日志
 
@@ -140,7 +142,7 @@ Bilibili progressive MP4
 
 - Debug ARMv5/GCCE：2026-08-25 六轮完整构建均 `sbs errors: 0`；
 - Release ARMv5/GCCE：四轮完整构建均 `sbs errors: 0`；
-- SIS：Debug/Release `codeccompat1` 的 unsigned 与 current-certificate 归档均已生成；`signsis -o` 已验证当前证书有效期至 2036-08-21，大小和 SHA-256 见 `docs/RELEASE_0.7.0_ZH.md`。它们是历史诊断包，不是 0.9 安装包；
+- SIS：Debug/Release `codeccompat1` 的 unsigned 与 current-certificate 归档均已生成；`signsis -o` 已验证当前证书有效期至 2036-08-21，大小和 SHA-256 见 `docs/releases/RELEASE_0.7.0_ZH.md`。它们是历史诊断包，不是 0.9 安装包；
 - `armsoftprobe1` Debug 与无实验宏的标准 Debug 均完成 GCCE ARMv5 全量构建，`sbs errors: 0`；当前签名实验包 SHA-256 为 `17730DC83BAD4FDC66AF35FE721AE6A2C6D56D772EC0B1CEDCF7B370F2E0CF3E`；
 - ARM 真机状态：`ConfigureDecoderL()=-5`，路线已废止；`armsoftprobe1` 只保留作历史证据；
 - PPSSPP-FFmpeg 源码固定在 commit `b87f7c6d522d1edba77cfc4fac96ce48a236f806`；GCCE 4.4.1 已生成 H.264-only `libavcodec`/`libavutil`；当前优化库使用 ARM1176JZF-S、ARMv6/VFPv2、`-Os` 且禁用 NEON。全库 `-O2` 会让最终 `.rodata` 越过固定 `0x400000` 数据边界，不能用于该 Symbian EXE；进一步源码审计确认主要 H.264 快路径只为 NEON/ARMv6T2 提供，ARM1176 上仍主要走 generic C；
@@ -152,7 +154,7 @@ Bilibili progressive MP4
 
 1. `BV1oyhM6AETw`：应输出 `PROFILE_SKIP`，继续由 MMF 正常播放；
 2. `BV1Uy8x6AETG`：0.9 主线应输出 `FFMPEG_SOFT_READY` 并保留 MMF AAC，不能自动关闭播放器；
-3. 重新构建并安装 `docs/RELEASE_0.9.0_ZH.md` 中的 Release 包进行 30 秒方向/覆盖/性能、pause/seek 和音画同步验收；主线 READY 应为 `ARM11_GENERIC_H264_RGB565_LUT2X2`，不加入 `ffmpeglatedrop1`；
+3. 重新构建并安装 `docs/releases/RELEASE_0.9.0_ZH.md` 中的 Release 包进行 30 秒方向/覆盖/性能、pause/seek 和音画同步验收；主线 READY 应为 `ARM11_GENERIC_H264_RGB565_LUT2X2`，不加入 `ffmpeglatedrop1`；
 4. Release 完成 50 次进入/退出后，才把 0.7 标为稳定版。
 
 ## 6. 代码入口

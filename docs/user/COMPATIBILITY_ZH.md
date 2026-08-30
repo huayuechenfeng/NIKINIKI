@@ -1,6 +1,7 @@
 # Symbian³ / Anna / Belle 统一安装包兼容策略
 
-> 更新日期：2026-08-29  
+> 状态：Active
+> 更新日期：2026-08-30
 > 结论：正式版只维护一个以 `Symbian3Qt474` 构建的应用 SIS；该包已在 Nokia 603 / Belle 实测正常。原版 Symbian³ 和 Anna 另行提供离线 Qt/Mobility 运行库说明并在公测收集结果，不为三个系统分别编译应用。
 
 ## 1. 发布决定
@@ -70,8 +71,13 @@
 
 QR 登录是本次兼容改动的专项门：日志须出现非零 `WW:COOKIE_PARTS` 捕获，并最终满足 `WW:LOGIN_COOKIE_SUMMARY true true true`、账号资料成功加载、退出重启后会话仍有效。
 
-在开放原版 Symbian³ 公测前，应先取得并核对可再分发的完整 Qt 4.7.4 / Qt Mobility 1.2.x 离线安装包；当前 SDK 的两个 stub 与 `smartinstaller.sis` 不满足这个条件。此项只影响原版系统公测的安装前置材料，不改变统一应用 SIS 或 Belle 已通过结果。
+仓库 `prerequisites/` 已保留从 Symbian Anna SDK 提取的 Qt 4.7.4 与 Qt Mobility 1.2.1
+离线安装包，来源、大小和 SHA-256 见 1.0.0 发布说明。原版 Symbian³ 仍需由公测用户验证这些
+运行库在具体固件上的安装与运行结果；这不改变统一应用 SIS 或 Belle 已通过结果。
 
-## 6. 当前安装包不是正式可分发签名包
+## 6. 正式发布包
 
-上表两个新 SIS 使用 SDK 自带的 2009–2019 过期自签名证书，只能证明构建和包内容，不能替代正式发布包。仓库当前没有已有 2026–2036 证书对应的私钥；恢复正确私钥或取得新的有效证书后，应对同一 `Symbian3Qt474` Release 产物签名，先完成 Belle 发布回归，再开放原版 Symbian³ / Anna 公测。不要重新使用历史 Belle 构建充当统一包。
+1.0.0 的 `Symbian3Qt474` Release 产物已经剥离 SDK 旧签名，并使用当前有效证书完成重签和公开发布。
+安装包身份、大小、SHA-256 与证书信息只在
+[1.0.0 发布说明](../releases/RELEASE_1.0.0_ZH.md)维护。SDK 自动生成的过期自签名包、
+历史 Belle 包和诊断包均不能替代正式统一包。

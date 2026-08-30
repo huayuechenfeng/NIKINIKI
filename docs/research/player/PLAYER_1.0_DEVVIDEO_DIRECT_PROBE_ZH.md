@@ -1,5 +1,7 @@
 # DevVideo Direct Screen Access 最终支线探针（已封存）
 
+> 文档状态：Historical experiment。本文只证明 DSA Phase A 边界，不是当前显示后端。
+
 > 状态：2026-08-28 Nokia 603 真机 Phase A 硬失败；1.0 前不制作第二包、不接 FFmpeg。  
 > 边界：本探针不修改 MMF AAC、PTS、Range、队列、catch-up 或 CPU RGB565 fallback。普通构建未编入其源文件。
 

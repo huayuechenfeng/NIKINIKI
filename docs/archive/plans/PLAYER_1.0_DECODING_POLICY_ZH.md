@@ -1,5 +1,9 @@
 # 1.0 前播放器解码与外部回退政策
 
+> 归档状态：Superseded by implementation。当前选路与显示结构见
+> `docs/developer/PLAYBACK_ARCHITECTURE_ZH.md`，长期决定见 `docs/decisions/0003-header-preflight-routing.md`
+> 和 `docs/decisions/0004-on-device-software-fallback.md`。
+
 > 决定日期：2026-08-26；路由修订：2026-08-29  
 > 状态：1.0 公开发布前的强制执行路线  
 > 目标设备：Nokia 603 / Nokia 808 等 Symbian³ / Belle 设备
@@ -66,7 +70,7 @@ ARM decoder 的返回值只证明其 header parser 接受故障流，不能证�
 2. 若系统 ARM decoder 不可用，使用 QtSDK/GCCE 4.4.1 可从源码重编的裁剪 libavcodec 或 OpenH264 类实现；
 3. `hrydgard/ppsspp-ffmpeg` 的 Symbian/ARMv6 资料可用于参考补丁和构建参数，但现有预编译 `avcodec.lib`/`avutil.lib` 由更新 GCC 生成，带 GCCE 4.4.1 无法识别的强制 EABI object attribute 44，不能直接链接进当前应用；必须用兼容工具链从源码重编。
 
-两条路线的执行阶段、止损条件和相对工作量见 `docs/PLAYER_1.0_SOFTWARE_DECODER_PLAN_ZH.md`。当前选择是先做系统 ARM decoder 的 Configure/Initialize/首帧与 30 秒性能验证；它失败后才启动 PPSSPP-FFmpeg 的 GCCE H.264-only 源码重编。
+两条路线的执行阶段、止损条件和相对工作量见 `docs/research/player/PLAYER_1.0_SOFTWARE_DECODER_PLAN_ZH.md`。当前选择是先做系统 ARM decoder 的 Configure/Initialize/首帧与 30 秒性能验证；它失败后才启动 PPSSPP-FFmpeg 的 GCCE H.264-only 源码重编。
 
 ### 4.3 最低实现要求
 

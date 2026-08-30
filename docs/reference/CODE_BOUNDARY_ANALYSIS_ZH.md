@@ -2,7 +2,7 @@
 
 > 更新日期：2026-08-29  
 > 上游基线：`xfangfang/wiliwili` `88e5876`（v1.6.0，`yoga`）  
-> 产品基线：NIKINIKI 0.9.0 Symbian³ 真机验证候选
+> 产品基线：NIKINIKI 1.0.0 与当前主线
 
 ## 1. 最终结论
 

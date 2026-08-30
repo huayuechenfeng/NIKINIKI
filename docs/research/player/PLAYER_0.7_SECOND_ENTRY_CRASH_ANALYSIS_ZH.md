@@ -1,9 +1,12 @@
 # 0.7 播放器第二次进入崩溃分析
 
+> 文档状态：Historical evidence。当前生命周期决定见
+> `docs/decisions/0002-persistent-player-lifecycle.md`。
+
 > 记录日期：2026-08-25  
 > 适用版本：wiliwili for Symbian³ 0.7.0  
 > 状态：已解决。用户真机确认 `surfacepersist1` 可以退出后再次进入播放器；50 次 Release 压力门槛仍待完成  
-> 关联总报告：`docs/DEVELOPMENT_STAGE_REPORT_2026-08-25_ZH.md`
+> 关联总报告：`docs/archive/wiliwiliforsymbian3/DEVELOPMENT_STAGE_REPORT_2026-08-25_ZH.md`
 
 ## 1. 当前结论
 
@@ -151,4 +154,4 @@ Debug 与 Release 都由 Qt 4.7.4/GCCE 完整编译，`sbs errors: 0`。六个�
 | Debug surfacepersist1 | `symbian/out/releases/v0.7.0/wiliwili_symbian_0.7.0_debug_surfacepersist1_currentcert.sis` | 9,163,400 | `78667C76978D27BCF331AE41C6A11A7B8921DCD4ED00854A2960515F2BB6DB0E` |
 | Release surfacepersist1 | `symbian/out/releases/v0.7.0/wiliwili_symbian_0.7.0_release_surfacepersist1_currentcert.sis` | 9,168,428 | `4BEBC2E8151FD688E4A7252E3DC86C89E3C562D5AB13DD4D8FFF5CF3DDD50190` |
 
-两份产物都使用有效期 2026-08-24 至 2036-08-21 的当前证书。`surfacepersist1` 已取得可重复播放的真机结果；Release 达到 50 次前仍不得标记为完整压力稳定版。旧 `release_full` / `debug_mmftrace5` / `overlayreuse1` 均保留为已确认失败的对照基线。当前有声无画问题是独立的码流兼容 P0，见 `docs/PLAYER_0.7_CODEC_COMPATIBILITY_ZH.md`。
+两份产物都使用有效期 2026-08-24 至 2036-08-21 的当前证书。`surfacepersist1` 已取得可重复播放的真机结果；Release 达到 50 次前仍不得标记为完整压力稳定版。旧 `release_full` / `debug_mmftrace5` / `overlayreuse1` 均保留为已确认失败的对照基线。当前有声无画问题是独立的码流兼容 P0，见 `docs/research/player/PLAYER_0.7_CODEC_COMPATIBILITY_ZH.md`。

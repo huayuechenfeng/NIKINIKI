@@ -1,5 +1,8 @@
 # 0.9 GLES YUV420 软解输出优化
 
+> 文档状态：Historical experiment。当前普通输出为 native RGB565 surface；见
+> `docs/developer/PLAYBACK_ARCHITECTURE_ZH.md`。
+
 > 实现日期：2026-08-27  
 > 状态：历史实验记录（2026-08-27 真机已验证但不适合发布）。三平面 GLES 上传约 216 ms/帧、QGLWidget 提交约 321 ms/帧，ping-pong 无改善；当前主线已恢复 CPU RGB565，本文件不再是 soft renderer 的执行基线。
 

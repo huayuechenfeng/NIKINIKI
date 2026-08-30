@@ -1,6 +1,6 @@
 # wiliwili for Symbian³ 0.7.0 播放器正式集成基线
 
-> 2026-08-26 更正：本页下列 `codeccompat1` 与 `armsoftprobe1` 均为历史诊断产物。BCM2727 拒绝目标 7-ref/DPB7/weighted 流，系统 ARM 又在 Configure 返回 -5。当前回归基线仍是 `surfacepersist1`；`ffmpegsoft1` 已真机出画面但约 2–3 fps，只是纯 C 性能基线。当前优化入口是从源码以 `CONFIG+=ffmpegsoft2` 构建，不是本页既有签名包。1.0 前的新路线见 `docs/PLAYER_1.0_DECODING_POLICY_ZH.md`。
+> 文档状态：Historical release record。下列 `codeccompat1` 与 `armsoftprobe1` 均为历史诊断产物，不能作为当前测试包。当前播放器见 `docs/developer/PLAYBACK_ARCHITECTURE_ZH.md`，正式发布见 `docs/releases/RELEASE_1.0.0_ZH.md`。
 
 ## 安装包
 
@@ -105,7 +105,7 @@ Symbian 视频输出，而是直接使用 Belle 的 `CVideoPlayerUtility2`：
 
 故障地址处是通过无效对象/虚表进行虚函数调用的 ARM Thumb 指令序列。设备 Qt 共享库未加载符号，因此不能精确命名 Qt 函数。`overlayreuse1` 真机仍失败，而 `surfacepersist1` 进一步保留 controller、native video host、MMF observer/utility 和 overlay 的全部原生对象身份；用户已确认后者可以退出后再次播放，故确定性的第二次进入 P0 已功能解决。
 
-Qt Creator 的 CODA 适配器会把 Symbian exception/panic 通用映射成 GDB `SIGSEGV`。CODA 会改变时序，但 Release/Debug 独立启动均已复现，证明它不是必要触发因素；手机报告的 data abort 也不是 packet-size 或缺少共享库符号警告造成的。详细证据和后续调查边界见 `docs/PLAYER_0.7_SECOND_ENTRY_CRASH_ANALYSIS_ZH.md`。
+Qt Creator 的 CODA 适配器会把 Symbian exception/panic 通用映射成 GDB `SIGSEGV`。CODA 会改变时序，但 Release/Debug 独立启动均已复现，证明它不是必要触发因素；手机报告的 data abort 也不是 packet-size 或缺少共享库符号警告造成的。详细证据和后续调查边界见 `docs/research/player/PLAYER_0.7_SECOND_ENTRY_CRASH_ANALYSIS_ZH.md`。
 
 ## codeccompat1 历史真机验收计划（已作废）
 
@@ -172,4 +172,4 @@ Nokia 603 真机已经确认横屏播放的画面、声音和弹幕正常，控�
 
 当前独立待验收项是 H.264 编码覆盖：`BV1Uy8x6AETG` 的最低 360P AVC 使用
 7 个参考帧、4 帧重排和 weighted B-frame，MMF 只能播放音频；正常对照
-`BV1oyhM6AETw` 为 4/3/无 weighted。后续对照已经证明 BCM2727 拒绝最低 Q16 的 7/4/7/weighted 故障流，所以 `codeccompat1` 的 Direct DevVideo 接管不能成为正式解法。1.0 前直接进入本机软件解码路线，仍无法软解时允许用户确认后调用外部播放器；不使用桥接或远端转码。详见 `docs/PLAYER_1.0_DECODING_POLICY_ZH.md`。
+`BV1oyhM6AETw` 为 4/3/无 weighted。后续对照已经证明 BCM2727 拒绝最低 Q16 的 7/4/7/weighted 故障流，所以 `codeccompat1` 的 Direct DevVideo 接管不能成为正式解法。1.0 前直接进入本机软件解码路线，仍无法软解时允许用户确认后调用外部播放器；不使用桥接或远端转码。详见 `docs/archive/plans/PLAYER_1.0_DECODING_POLICY_ZH.md`。

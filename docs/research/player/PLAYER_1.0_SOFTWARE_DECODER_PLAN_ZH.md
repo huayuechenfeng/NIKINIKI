@@ -1,5 +1,8 @@
 # 1.0 本机软件解码开发计划
 
+> 文档状态：Historical implementation record。当前产品结构见
+> `docs/developer/PLAYBACK_ARCHITECTURE_ZH.md`，后续工作见 `docs/ROADMAP_ZH.md`。
+
 > 决策日期：2026-08-26，最新更新：2026-08-27  
 > 状态：系统 ARM 路线已真机止损；`ffmpegsoft1` 已在 Nokia 603 为原有声无画视频输出真实画面。`ffmpegsoft2` 的 CPU RGB565 输出达到约 11.4–12.0 fps，180 ms late-drop 控制组失败；GLES2 三平面 YUV420 候选已实测约 216 ms/帧上传、约 321 ms/帧提交并退出主线，当前 soft renderer 恢复 CPU RGB565。  
 > 结论：当前唯一内置软解候选是用 GCCE 4.4.1 从 PPSSPP-FFmpeg 源码重编的 libavcodec；不使用旧预编译库，不再继续系统 ARM/DevVideo 路线
@@ -242,7 +245,7 @@ UC 二进制只用于行为和架构对照，不复制、反编译移植或再�
 | `video_player_widget.cpp` 的 soft native surface + ARGB overlay | 已建立；opaque RGB565 原生子窗口显示视频，唯一透明 ARGB 顶层显示弹幕/控件并接管输入；待真机验证 |
 | `symbian/app/wiliwili_symbian.pro` | 0.9 普通构建默认启用 FFmpeg/CPU RGB565；`ffmpeglatedrop1` 仅诊断 |
 | `symbian/third_party/ppsspp_ffmpeg/` | 可复现 GCCE 构建脚本、公开头文件、静态库和 LGPL 文件 |
-| `docs/DEVICE_TEST_MATRIX.md` | 记录每个阶段的首帧、帧率、同步、内存和重复进入结果 |
+| `docs/reference/DEVICE_TEST_MATRIX.md` | 记录每个阶段的首帧、帧率、同步、内存和重复进入结果 |
 
 ## 8. 下一步唯一执行入口
 

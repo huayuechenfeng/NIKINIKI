@@ -1,8 +1,10 @@
 # wiliwili 直播实现与 Symbian³ 兼容方案
 
+> 文档状态：Historical research。直播仍在路线图 Later；本文不能覆盖当前普通视频架构。
+
 记录日期：2026-08-24
 
-> **0.7 接手说明（2026-08-25）：**普通视频正式后端已经由 Qt Mobility `QMediaPlayer` 改为原生 `CVideoPlayerUtility2`，直播最终也应复用该后端。`surfacepersist1` 完整复用 controller/native video host/MMF utility/overlay 对象图，用户已确认可退出后再次播放。当前普通视频 P0 转为 H.264 编码覆盖；在兼容回退和 Release 50 次压力门槛通过前，直播线路和直播弹幕保持 P1/P2，不应抢先修改播放器显示架构。最新状态见 `docs/DEVELOPMENT_STAGE_REPORT_2026-08-25_ZH.md` 和 `docs/PLAYER_0.7_CODEC_COMPATIBILITY_ZH.md`。
+> **0.7 接手说明（2026-08-25）：**普通视频正式后端已经由 Qt Mobility `QMediaPlayer` 改为原生 `CVideoPlayerUtility2`，直播最终也应复用该后端。`surfacepersist1` 完整复用 controller/native video host/MMF utility/overlay 对象图，用户已确认可退出后再次播放。当前普通视频 P0 转为 H.264 编码覆盖；在兼容回退和 Release 50 次压力门槛通过前，直播线路和直播弹幕保持 P1/P2，不应抢先修改播放器显示架构。最新状态见 `docs/archive/wiliwiliforsymbian3/DEVELOPMENT_STAGE_REPORT_2026-08-25_ZH.md` 和 `docs/research/player/PLAYER_0.7_CODEC_COMPATIBILITY_ZH.md`。
 
 ## 1. 上游 wiliwili 的实现
 

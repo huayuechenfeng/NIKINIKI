@@ -1,6 +1,8 @@
 # Device test matrix
 
-Recorded: 2026-08-25; latest update: 2026-08-28
+> Status: Active reference
+> Recorded: 2026-08-25; latest update: 2026-08-30
+> Scope: this is the only source for build/device pass, failure and pending coverage; package hashes belong in `docs/releases/`
 
 ## Device baseline
 
@@ -92,60 +94,23 @@ The WLAN address is DHCP-assigned and must be rechecked in CODA before later ses
 | 1.0.0 formal Release build and signing | `Symbian3Qt474`, ARMv5 UREL, 2026-08-29 | Build/package/signature pass | The user promoted this successfully built mainline to 1.0.0. GCCE completed with `sbs errors: 0` and 32 existing warnings; package and binary version are 1.0.0; the import table excludes CookieManager; code ends at `0x00345FDC` below fixed data base `0x00400000`; SIS capabilities match `NetworkServices ReadUserData`; the current Qt Development Frameworks certificate is valid 2026-08-24 through 2036-08-21; host JSON tests pass 58/58. Original Symbian³/Anna public beta and the 50-cycle soak remain follow-up coverage, not completed evidence. |
 | 0.9 `devvideodirectprobe1` | Nokia 603 Debug/CODA, 2026-08-28 | Phase A hard fail / pre-1.0 retired | `CDirectScreenAccess` creation succeeds (`dsaError=0`), but the expected full-screen ARGB UI/弹幕 window leaves no DrawingRegion: overlay hidden and visible samples are both 0 rect / 0 area; the visible transition produces one Abort/Restart whose restart succeeds but still has area 0. The probe correctly emits `DIRECT_PHASE_A NO` / `DIRECT_RESULT phaseA NO phaseB NO`, never creates DevVideo or PP, then restores portrait cleanly. This rejects DSA beneath the formal full-screen overlay, not PP YUV capability in isolation. |
 
-Verified packages:
+安装包大小、SHA-256 和签名不在测试矩阵中重复维护；正式版本只见
+`docs/releases/`，历史诊断包只见对应历史发布说明。
 
-| Package | Size | SHA-256 |
-|---|---:|---|
-| `symbian/out/releases/v1.0.0/NIKINIKI_1.0.0_release.sis` | 9,804,372 bytes | `49748F5B4061F1F3D776B9FA7275B0092F2BA75F9F46872AE2FF88BB2B641095` |
-| `symbian/out/upstream-api-release/wiliwili_upstream_api_probe.sis` | 11,500 bytes | `827E1550711E55793397B29876639377C6E7E652BB2A718A4C505586F44310A7` |
-| `symbian/out/nanovg-gles2-debug/wiliwili_nanovg_gles2_probe.sis` | 1,577,104 bytes | `CA7FEDD081E42E11F75DE7AC7A8C5A661555FAED5F869514E7969F04C31C082A` |
-| `symbian/out/releases/v0.4.1/wiliwili_symbian_0.4.1_full_currentcert.sis` | 7,532,264 bytes | `B21138BFDACA185E6AC42788217F5A5A81F11D35F8AA02D0DEB15FF2A3F237C9` |
-| `symbian/out/releases/v0.5.0/wiliwili_symbian_0.5.0_debug_full_currentcert.sis` | 7,555,988 bytes | `3F43DD2417485EBB8E0E497CCBF9B7A7185BF14BACDE8F231FD68215A00AF62C` |
-| `symbian/out/releases/v0.5.0/wiliwili_symbian_0.5.0_release_full_currentcert.sis` | 7,558,260 bytes | `5495C0AFE909E2E412BD0A6327B16FFD7F418B5B100B0D730835D7671A298D4C` |
-| `symbian/out/releases/v0.6.0/wiliwili_symbian_0.6.0_debug_full_currentcert.sis` | 7,571,404 bytes | `E73A1F46EF5D8F8D36E085A719D1CB605D6D9908C17FA4DD1FBE96BA94B5A930` |
-| `symbian/out/releases/v0.6.0/wiliwili_symbian_0.6.0_release_full_currentcert.sis` | 7,574,728 bytes | `5D3BCA6E301246B1885485F0498EA04D11D5CA5C5131FA83FB3B736B117179CB` |
-| `symbian/out/releases/v0.6.1/wiliwili_symbian_0.6.1_debug_full_currentcert.sis` | 9,136,380 bytes | `656C2DB88B46E0451C7D76D6D42D5702BE71C6EFD2D89858DD4923CBCEFDF755` |
-| `symbian/out/releases/v0.6.1/wiliwili_symbian_0.6.1_release_full_currentcert.sis` | 9,138,828 bytes | `3FB5608DA9F2958B06372F34033937AF381627D46D41BD941073F5BB820148F0` |
-| `symbian/out/releases/v0.6.2/wiliwili_symbian_0.6.2_debug_full_currentcert.sis` | 9,138,620 bytes | `D66E18B378D96B82AF284B70AA0A23DE7867147D7D573051FF8EF72007D0FEC7` |
-| `symbian/out/releases/v0.6.2/wiliwili_symbian_0.6.2_release_full_currentcert.sis` | 9,141,672 bytes | `671E8E11A3A6F18EC484757DFF9D6F3967B0594CBB5C1848C2C0F0626280422B` |
-| `symbian/out/releases/v0.6.3/wiliwili_symbian_0.6.3_debug_full_currentcert.sis` | 9,139,672 bytes | `4C18FB6A5412251B047077441F40DDAB558293C4650DED1291248EBFD50338F1` |
-| `symbian/out/releases/v0.6.3/wiliwili_symbian_0.6.3_release_full_currentcert.sis` | 9,144,324 bytes | `4BDEF881B0B2593C19055C5D309FBA6B9E2F3EB76D72414117DDAFCFD3E5478B` |
-| `symbian/out/releases/v0.7.0/wiliwili_symbian_0.7.0_debug_mmftrace5_currentcert.sis` | 9,161,312 bytes | `BDB93F8A530FBD7D55CB3687C98441C7CF1CCE46FE8BC4B8528C5CE84112EBA8` |
-| `symbian/out/releases/v0.7.0/wiliwili_symbian_0.7.0_release_full_currentcert.sis` | 9,165,496 bytes | `2422C26459894461BEA56899D7CE0062C22621C1B6443DAFD16174954F5C470A` |
-| `symbian/out/releases/v0.7.0/wiliwili_symbian_0.7.0_debug_overlayreuse1_currentcert.sis` | 9,162,372 bytes | `39FD780B043828B92BD4FA22F4BB6C5A71AB1D3A7A6E0F3AA67C40F74FD83E21` |
-| `symbian/out/releases/v0.7.0/wiliwili_symbian_0.7.0_release_overlayreuse1_currentcert.sis` | 9,167,104 bytes | `4B91A7D2A05AA2E7DD5011350753347B53D83314E74B3AE1741BB39DC20BAF5E` |
-| `symbian/out/releases/v0.7.0/wiliwili_symbian_0.7.0_debug_surfacepersist1_currentcert.sis` | 9,163,400 bytes | `78667C76978D27BCF331AE41C6A11A7B8921DCD4ED00854A2960515F2BB6DB0E` |
-| `symbian/out/releases/v0.7.0/wiliwili_symbian_0.7.0_release_surfacepersist1_currentcert.sis` | 9,168,428 bytes | `4BEBC2E8151FD688E4A7252E3DC86C89E3C562D5AB13DD4D8FFF5CF3DDD50190` |
-| `symbian/out/releases/v0.7.0/wiliwili_symbian_0.7.0_debug_devvideoprobe1_currentcert.sis` | 9,164,504 bytes | `27360039D7DD1CD32601F8477FF4FEF0E61CC886260AB40646DB7149F793C753` |
-| `symbian/out/releases/v0.7.0/wiliwili_symbian_0.7.0_release_devvideoprobe1_currentcert.sis` | 9,169,276 bytes | `34D83F9F4D8AE4CAF8AA211A0EE9A4A1FE5886F934A822D77B9D81DC0A1450C0` |
-| `symbian/out/releases/v0.7.0/wiliwili_symbian_0.7.0_debug_devvideosample1_currentcert.sis` | 9,191,916 bytes | `210B4A5B53F6BA080598561C6552952304911E175C35EAA398CE80001CECA586` |
-| `symbian/out/releases/v0.7.0/wiliwili_symbian_0.7.0_debug_codeccompat1_currentcert.sis` | 9,205,204 bytes | `61F87FBE6B3A2B9D014CBC569C1F798733655E54C010577EB08EDE667D5EC9FA` |
-| `symbian/out/releases/v0.7.0/wiliwili_symbian_0.7.0_release_codeccompat1_currentcert.sis` | 9,220,876 bytes | `08C9F75DCD4025E2680B41B5A4B908BFF5439E06D46218C88A32047AA048B2D0` |
-| `symbian/out/releases/v0.7.0/wiliwili_symbian_0.7.0_debug_armsoftprobe1_currentcert.sis` | 9,241,072 bytes | `17730DC83BAD4FDC66AF35FE721AE6A2C6D56D772EC0B1CEDCF7B370F2E0CF3E` |
-| `symbian/out/releases/v0.7.0/wiliwili_symbian_0.7.0_debug_ffmpegsoft1_currentcert.sis` | 9,709,300 bytes | `5FCA1231349D67088C93F0A2D7AEF5D6A90E2DB0E6ECBCD382EC8ED40B7E609A` |
-| `symbian/out/releases/v0.9.0/wiliwili_symbian_0.9.0_debug_full_currentcert.sis` | 9,687,100 bytes | `70ABE6972E52AD533A82A14520B425D6FAF5EB2C344C76AE178C3CE435DC3698` |
-| `symbian/out/releases/v0.9.0/wiliwili_symbian_0.9.0_release_full_currentcert.sis` | 9,703,416 bytes | `17CEE045699489B08143793CF3F70A37DF06EEC74BDDAB24CC75E622B60E8F04` |
 
 ## Pending tests
 
 | Area | Required observation | Milestone |
 |---|---|---|
-| Release full-surface reuse soak | Continue from the confirmed repeat-play result to 50 Release play/back/reopen loops. Confirm picture/audio/danmaku, clear UI, intact return and no residual overlay/background audio | 1.0 post-release soak |
-| 1.0 soft native-surface integration | Install the formal mainline with no `applandscape1`. A known-good stream must remain MMF; a risk stream must reach `FFMPEG_SOFT_READY`, `SOFT_SURFACE_ACTIVE` and `SOFT_SURFACE_FIRST_PAINT`. Require `softSurfacePresented>0`, `overlayVideoDrawMs=0`, `overlayPositionCacheHits>0`, correct video below visible/clickable UI/danmaku, no orientation timeout/system bars, intact return and at least 10 alternating re-entry cycles. | 1.0 post-release coverage |
-| External-player fallback | When built-in software decode is unavailable or fails safely, show an explicit confirmation and hand off a safe local file or cookie-free URL to an installed external player; return cleanly to wiliwili. | pre-1.0 P0 |
-| Re-entry stability gate | After both smoke tests, pass 50 final Release loops with no crash, residual overlay, black screen or background audio | 0.7 stable gate |
-| AppArc/font/chrome cold start | Fully install 0.7 Release, exit from the in-app Settings button, then launch from the phone icon three times without CODA; every launch must show fonts, reach the home list, and have no bottom S60 Exit bar | 0.7 |
-| QR/session | Refresh QR, scan and confirm; `WW:LOGIN_COOKIE_SUMMARY` must be `true true true`, `/nav` must display name/UID, and the session must survive a clean restart | 0.7 regression |
-| Original Symbian³ / Anna public-beta compatibility | First obtain a complete redistributable original-Symbian³ Qt 4.7.4 / Mobility 1.2.x offline runtime (the installed SDK currently has only stubs/Smart Installer; Anna has unverified local candidates). Public-beta users install the same `Symbian3Qt474` Release SIS used on Belle and report firmware/runtime versions, cold start, HTTPS/home/images, QR login, one MMF stream, one FFmpeg-risk stream, clean return and repeat entry. | Post-candidate public-beta matrix; not a pre-release blocker |
-| Search stability | Tap Search from Home, confirm the editor remains above the SIP, cancel once, then search a video; repeat with `@` plus a user name. No flash exit and both result modes must open | 0.7 regression |
-| Account write API | On one disposable test video, verify like, one coin, favorite, watch later and a short comment; status must report success or the exact API error | 0.4.1 |
-| Content matrix | Verify video/user search, comment roots plus embedded/full thread replies, history, favorites, watch later, uploads and following; pull-to-refresh each list once | 0.6.3 |
-| Message matrix | Verify REPLY, @ ME, LIKE and CHAT tabs; open a chat and send one short text message | 0.4.1 |
-| UI soak | Browse lists and details for ten minutes with images ON, then repeat with images OFF; no sustained memory growth or corruption | 0.7 regression |
-| Native MMF media matrix | Test progressive H.264/AAC at 360P, 480P and 720P, including one `-12017` source; record `NATIVE_MMF_TRACKS`, picture/audio, pause, seek, volume, CDN fallback and intact return | 0.7 |
-| Danmaku soak | Scrolling/top/bottom XML comments render over native video, toggle works, dense comments and ten-minute playback remain responsive | 0.7 |
-| Multi-P | Cycle P selection on detail page and verify selected CID/title is played | 0.7 regression |
-| Video controls/layers | Confirm video remains below the single transparent overlay; test controls, progress drag, quality menu, danmaku toggle and full viewport without blur | 0.7 |
-| Video quality | Start at 480P, switch 360P → 480P, then test a formerly audio-only item; confirm fallback does not loop | 0.7 |
-| Live playback | Only after ordinary-video stability passes: open an active room, verify HLS/FLV picture/audio, quality switch and return; then implement/test live danmaku separately | post-0.7 P1 |
-| Lifecycle | Back key, task switch, lock/unlock, low-memory recovery and in-app clean exit | 0.7 stable gate |
+| 1.0 header preflight routing | Known-good stream records `ACCEPT → MMF`; known-risk stream records `REJECT → FFMPEG`; no Q6/CDN/backend loop | Now |
+| 1.0 Release repeat-entry soak | 50 MMF/FFmpeg alternating play/back/reopen loops; picture, audio, danmaku and controls remain correct; no crash, residual overlay, background audio or sustained memory growth | Now |
+| Soft native surface | Risk stream reaches `FFMPEG_SOFT_READY`, `SOFT_SURFACE_ACTIVE` and `SOFT_SURFACE_FIRST_PAINT`; require `softSurfacePresented>0`, `overlayVideoDrawMs=0`, position-cache hits and visible/clickable UI | Now |
+| Long playback | At least 30 minutes with temperature, memory, pause/seek/rate and foreground/background observations | Now |
+| Original Symbian³ | Same formal 1.0 SIS plus Qt/Mobility prerequisites: cold start, HTTPS/images, QR login, MMF stream, FFmpeg stream, return and re-entry | Now / public beta |
+| Symbian Anna | Same matrix and same application SIS as original Symbian³ | Now / public beta |
+| Native media matrix | 360P/480P/720P progressive H.264/AAC, `-12017`, CDN fallback, pause, seek and return | Next |
+| QR/session | Cookie summary true/true/true, account data loads, session survives clean restart | Next regression |
+| Search and content | Video/user search, input focus, comments/thread replies, history, favorites, later, uploads and following | Next regression |
+| Player controls and layers | Controls, drag, quality, danmaku, dense-comment soak, lock/unlock and task switch | Next regression |
+| External-player fallback | Built-in software failure shows explicit confirmation, protects Cookie/URL and returns with correct orientation/foreground state | Next implementation |
+| Live playback | After ordinary-video gates: active room picture/audio, HLS/FLV, quality, return, then live danmaku | Later |

@@ -1,13 +1,16 @@
 # NIKINIKI 1.0 发布后工作计划
 
+> 归档状态：Superseded。当前工作顺序见 `docs/ROADMAP_ZH.md`。本文中的安装包表和校验值
+> 不再维护；正式 1.0.0 事实只见 `docs/releases/RELEASE_1.0.0_ZH.md`。
+
 > 更新日期：2026-08-29  
 > 开发基线：1.0.0 正式 Release，原生 MMF + 本机 FFmpeg 回退 + 原生横屏 + 独立不透明 RGB565 视频表面 + 上层单 ARGB UI/弹幕窗
 > 当前工作：正式 SIS 已完成有效签名；继续原版 Symbian³ / Anna 公测、50 次 Release 重入、直播与外部播放器回退，不动已冻结解码器，也不拆分应用包。
-> 详细证据：`docs/PLAYER_0.7_CODEC_COMPATIBILITY_ZH.md`
+> 详细证据：`docs/research/player/PLAYER_0.7_CODEC_COMPATIBILITY_ZH.md`
 
-> 1.0 冻结规则：不再探索 BCM2727/BCM2763 硬解边界、SPS ref/DPB 伪装、DSA/post-processor 直显或受限 UI 变体。唯一保留的是已实现的只读 Broadcom header preflight：它不初始化或显示 DevVideo，只以真实 SPS/PPS + 首个同步 AU 的 `GetHeaderInformationL()` 结果选择 MMF 或本机软解。详见 `docs/PLAYER_1.0_DECODING_POLICY_ZH.md`。相关后续方向只记录在 `docs/POST_1.0_BCM2763_HWDEVICE_RESEARCH_ZH.md`、`docs/POST_1.0_H264_REFERENCE_DPB_RESEARCH_ZH.md` 与 `docs/POST_1.0_DEVVIDEO_DISPLAY_RESEARCH_ZH.md`，1.0 前不执行。
+> 1.0 冻结规则：不再探索 BCM2727/BCM2763 硬解边界、SPS ref/DPB 伪装、DSA/post-processor 直显或受限 UI 变体。唯一保留的是已实现的只读 Broadcom header preflight：它不初始化或显示 DevVideo，只以真实 SPS/PPS + 首个同步 AU 的 `GetHeaderInformationL()` 结果选择 MMF 或本机软解。详见 `docs/archive/plans/PLAYER_1.0_DECODING_POLICY_ZH.md`。相关后续方向只记录在 `docs/research/player/post-1.0/POST_1.0_BCM2763_HWDEVICE_RESEARCH_ZH.md`、`docs/research/player/post-1.0/POST_1.0_H264_REFERENCE_DPB_RESEARCH_ZH.md` 与 `docs/research/player/post-1.0/POST_1.0_DEVVIDEO_DISPLAY_RESEARCH_ZH.md`，1.0 前不执行。
 
-> 软解路线决定：PPSSPP-FFmpeg/libavcodec 已是当前唯一内置候选。使用 GCCE 4.4.1 源码重编的 H.264-only 库；当前版面向 ARM1176JZF-S 启用 ARMv6/VFP（禁用 NEON），并使用可满足 Symbian 4 MiB 代码/只读段边界的 `-Os`。旧 PPSSPP 预编译库仍禁止直接链接或删除 EABI attribute。详见 `docs/PLAYER_1.0_SOFTWARE_DECODER_PLAN_ZH.md`。
+> 软解路线决定：PPSSPP-FFmpeg/libavcodec 已是当前唯一内置候选。使用 GCCE 4.4.1 源码重编的 H.264-only 库；当前版面向 ARM1176JZF-S 启用 ARMv6/VFP（禁用 NEON），并使用可满足 Symbian 4 MiB 代码/只读段边界的 `-Os`。旧 PPSSPP 预编译库仍禁止直接链接或删除 EABI attribute。详见 `docs/research/player/PLAYER_1.0_SOFTWARE_DECODER_PLAN_ZH.md`。
 
 ## 1. 接手前必须确认的事实
 
@@ -113,7 +116,7 @@
 
 | 配置 | 文件 | SHA-256 |
 |---|---|---|
-| Release 1.0.0（正式发布包） | `symbian/out/releases/v1.0.0/NIKINIKI_1.0.0_release.sis` | `49748F5B4061F1F3D776B9FA7275B0092F2BA75F9F46872AE2FF88BB2B641095` |
+| Release 1.0.0（正式发布包；原记录已按实际产物更正） | `symbian/out/releases/v1.0.0/NIKINIKI_1.0.0_release.sis` | `2CDF906D345E1E60F9833DAA0695D5172A1D36D75073BFD8548633381D9A6E98` |
 | Release surfacepersist1 | `symbian/out/releases/v0.7.0/wiliwili_symbian_0.7.0_release_surfacepersist1_currentcert.sis` | `4BEBC2E8151FD688E4A7252E3DC86C89E3C562D5AB13DD4D8FFF5CF3DDD50190` |
 | Debug surfacepersist1 | `symbian/out/releases/v0.7.0/wiliwili_symbian_0.7.0_debug_surfacepersist1_currentcert.sis` | `78667C76978D27BCF331AE41C6A11A7B8921DCD4ED00854A2960515F2BB6DB0E` |
 | Release devvideoprobe1 | `symbian/out/releases/v0.7.0/wiliwili_symbian_0.7.0_release_devvideoprobe1_currentcert.sis` | `34D83F9F4D8AE4CAF8AA211A0EE9A4A1FE5886F934A822D77B9D81DC0A1450C0` |
