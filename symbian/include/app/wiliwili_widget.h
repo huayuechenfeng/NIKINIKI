@@ -95,6 +95,8 @@ private:
     void requestMessages(int type = 0, bool append = false);
     void requestNetworkDiagnostic();
     void toggleContentImages();
+    void cyclePlaybackMode();
+    void cycleDecoderMode();
     void promptSearch();
     void submitSearch(const QString &input, bool pushHistory = true);
     void hideSearchEditor();
@@ -339,6 +341,8 @@ private:
     int m_contentImageIndex;
     int m_contentImageGeneration;
     int m_contentImageLimit;
+    int m_playbackMode;
+    int m_decoderMode;
     bool m_contentAppend;
     bool m_contentCanLoadMore;
     int m_contentPage;

@@ -30,6 +30,10 @@
 
 - 在原版 Symbian³、Anna 上安装与 Belle 相同的 1.0 SIS；
 - 核验 Qt 4.7.4、Qt Mobility 1.2.x、TLS、冷启动、首页图片、登录和播放；
+- 在 N8/X7/C7 Belle 对同一 MP4 固定“全程硬解”，依次比较 `OpenUrlL`、
+  增长文件 `OpenFileL`、完整下载 `OpenFileL`，禁止同时改变清晰度或解码器；
+- 若两个 `OpenFileL` 路径有画面而 `OpenUrlL` 黑屏，归因到 MMF streaming/controller；
+  若三个应用内路径均黑而系统播放器播放同一本地文件正常，再进入 RWindow/Surface 显示链调查；
 - 收集系统版本、设备型号、运行库版本和完整结果，不把“预期兼容”记为通过。
 
 ### 4. 首次启动冷缓存回归

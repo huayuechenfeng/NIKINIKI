@@ -47,6 +47,7 @@ static const int KAvcProbeTotalPollLimit = 120;  // 60 seconds at 500 ms.
 static const int KOverlayFrameIntervalMilliseconds = 40; // 25 fps ceiling.
 static const int KSoftOverlayFrameIntervalMilliseconds = 33; // ~30 fps.
 static const int KSoftPositionRefreshMilliseconds = 500;
+static const qint64 KOpenFileStreamingStartBytes = 2LL * 1024LL * 1024LL;
 
 #ifdef Q_OS_SYMBIAN
 typedef TUint32 OverlayFastCounterValue;
@@ -1647,9 +1648,13 @@ VideoPlayerWidget::VideoPlayerWidget(
       m_pendingSourceIndex(-1), m_sourcePass(0),
       m_downloadSourceIndex(-1), m_downloadBytes(0),
       m_automaticFallbackTarget(0),
+      m_playbackMode(UrlStreamingPlayback),
+      m_decoderMode(AutomaticDecoder),
       m_closing(false), m_isLive(false),
       m_streamPlaybackMode(true),
       m_localFallbackAttempted(false), m_localPlaybackActive(false),
+      m_openLocalWhileDownloading(false), m_policyRouteFailed(false),
+      m_softwareVideoRouteSelected(false),
       m_landscapeRequested(false), m_landscapeApplied(false),
       m_orientationStage(NativePortraitIdle),
       m_landscapeWorkAreaSeen(false), m_portraitWorkAreaSeen(false),
@@ -1731,6 +1736,17 @@ VideoPlayerWidget::~VideoPlayerWidget()
     cancelLocalDownloadFallback(true);
     qDebug() << "WW:PLAYER_SESSION_DESTROY_READY"
              << static_cast<void *>(this);
+}
+
+void VideoPlayerWidget::setPlaybackPreferences(
+    int playbackMode, int decoderMode)
+{
+    m_playbackMode = qBound(
+        static_cast<int>(UrlStreamingPlayback), playbackMode,
+        static_cast<int>(DownloadThenPlayback));
+    m_decoderMode = qBound(
+        static_cast<int>(AutomaticDecoder), decoderMode,
+        static_cast<int>(SoftwareOnlyDecoder));
 }
 
 void VideoPlayerWidget::startDevVideoDirectProbe()
@@ -1911,6 +1927,9 @@ void VideoPlayerWidget::openSource(
     m_downloadBytes = 0;
     m_localFallbackAttempted = false;
     m_localPlaybackActive = false;
+    m_openLocalWhileDownloading = false;
+    m_policyRouteFailed = false;
+    m_softwareVideoRouteSelected = false;
     m_lastReportedError = -1;
     m_closing = false;
     m_sourceClock.start();
@@ -1931,7 +1950,8 @@ void VideoPlayerWidget::openSource(
     // the new source. After a normal Back/re-enter cycle the playback windows
     // are still hidden here. This removes the old display binding while
     // retaining the facade, observer, utility and native window objects.
-    recreateMediaPlayer(true);
+    recreateMediaPlayer(
+        m_isLive || m_playbackMode == UrlStreamingPlayback);
     m_overlay->sourceChanged();
     m_restoreClosesSession = false;
 
@@ -1959,6 +1979,15 @@ void VideoPlayerWidget::openSource(
              << source.videoWidth << source.videoHeight
              << m_landscapeRequested << nativeOrientationChange
              << "stage" << static_cast<int>(m_orientationStage);
+    qDebug() << "WW:PLAYER_POLICY"
+             << "playback" << m_playbackMode
+             << "decoder" << m_decoderMode
+             << "live" << m_isLive;
+    if (m_isLive &&
+        (m_playbackMode != UrlStreamingPlayback ||
+         m_decoderMode == SoftwareOnlyDecoder)) {
+        qDebug() << "WW:PLAYER_POLICY_LIVE_USES_OPENURL_MMF";
+    }
 }
 
 void VideoPlayerWidget::setDanmaku(
@@ -1984,6 +2013,7 @@ void VideoPlayerWidget::loadSourceAt(int index)
     // or the local software decoder.
     const bool canPreflightBeforeMmf = index == 0 && m_sourcePass == 0 &&
         m_avcProbeStage == 0 && !m_isLive &&
+        m_decoderMode != HardwareOnlyDecoder &&
         m_format.startsWith(QString::fromLatin1("mp4"),
                             Qt::CaseInsensitive) &&
         m_avcProbeReader && !m_avcProbeReply;
@@ -1995,7 +2025,28 @@ void VideoPlayerWidget::loadSourceAt(int index)
         return;
     }
 #endif
-    openMmfSourceAt(index, "direct");
+    if (m_decoderMode == HardwareOnlyDecoder)
+        qDebug() << "WW:PLAYER_DECODER_ROUTE" << "HARDWARE";
+    openSelectedPlaybackSourceAt(index, "direct");
+}
+
+void VideoPlayerWidget::openSelectedPlaybackSourceAt(
+    int index, const char *reason)
+{
+    if (!m_player || index < 0 || index >= m_sourceUrls.size())
+        return;
+    m_sourceIndex = index;
+    m_mmfSourceOpenDeferred = false;
+    m_player->setNativeVideoEnabled(!m_softwareVideoRouteSelected);
+    if (m_isLive || m_playbackMode == UrlStreamingPlayback) {
+        openMmfSourceAt(index, reason);
+        return;
+    }
+    startLocalDownloadFallback(
+        index, m_playbackMode == OpenFileStreamingPlayback);
+    qDebug() << "WW:PLAYER_LOCAL_ROUTE" << reason
+             << "mode" << m_playbackMode
+             << (index + 1) << m_sourceUrls.size();
 }
 
 void VideoPlayerWidget::openMmfSourceAt(int index, const char *reason)
@@ -2032,7 +2083,20 @@ void VideoPlayerWidget::openDeferredMmfSource(const char *reason)
     const int index = m_sourceIndex;
     qDebug() << "WW:PLAYER_SOURCE_DEFER_MMF_DONE" << reason
              << (index + 1) << m_sourceUrls.size();
-    openMmfSourceAt(index, reason);
+    openSelectedPlaybackSourceAt(index, reason);
+}
+
+void VideoPlayerWidget::handleAvcProbeFailure(const char *reason)
+{
+    if (m_decoderMode != SoftwareOnlyDecoder) {
+        openDeferredMmfSource(reason);
+        return;
+    }
+    m_mmfSourceOpenDeferred = false;
+    m_policyRouteFailed = true;
+    qDebug() << "WW:PLAYER_SOFTWARE_ONLY_FAILED" << reason;
+    if (m_overlay)
+        m_overlay->update();
 }
 
 void VideoPlayerWidget::createVideoOutputWidget()
@@ -2465,6 +2529,7 @@ void VideoPlayerWidget::recreateMediaPlayer(bool streamPlayback)
                   << static_cast<void *>(m_player)
                   << "native-no-rotation";
     }
+    m_player->setNativeVideoEnabled(true);
     m_streamPlaybackMode = streamPlayback;
     qDebug() << "WW:PLAYER_BACKEND_NATIVE"
              << (streamPlayback ? 1 : 0)
@@ -2508,13 +2573,15 @@ void VideoPlayerWidget::scheduleSourceAt(
              << delayMilliseconds << m_sourcePass;
 }
 
-void VideoPlayerWidget::startLocalDownloadFallback(int sourceIndex)
+void VideoPlayerWidget::startLocalDownloadFallback(
+    int sourceIndex, bool openWhileDownloading)
 {
     if (m_closing || m_isLive || sourceIndex < 0 ||
         sourceIndex >= m_sourceUrls.size()) {
         return;
     }
     cancelLocalDownloadFallback(false);
+    m_openLocalWhileDownloading = openWhileDownloading;
     m_localFallbackAttempted = true;
     m_downloadSourceIndex = sourceIndex;
     m_downloadBytes = 0;
@@ -2529,6 +2596,9 @@ void VideoPlayerWidget::startLocalDownloadFallback(int sourceIndex)
         qDebug() << "WW:PLAYER_LOCAL_OPEN_FAILED" << m_downloadPath;
         delete m_downloadFile;
         m_downloadFile = 0;
+        m_policyRouteFailed = true;
+        if (m_overlay)
+            m_overlay->update();
         return;
     }
 
@@ -2544,8 +2614,30 @@ void VideoPlayerWidget::startLocalDownloadFallback(int sourceIndex)
     m_downloadReply = m_downloadManager->get(request);
     qDebug() << "WW:PLAYER_LOCAL_DOWNLOAD"
              << (sourceIndex + 1) << m_sourceUrls.size()
+             << "progressive" << m_openLocalWhileDownloading
              << m_sourceUrls.at(sourceIndex).startsWith(
                     QString::fromLatin1("https://"));
+    m_overlay->update();
+}
+
+void VideoPlayerWidget::openLocalDownloadForPlayback(const char *reason)
+{
+    if (!m_player || m_downloadPath.isEmpty() ||
+        m_localPlaybackActive || m_downloadBytes < 4096) {
+        return;
+    }
+    if (m_downloadFile)
+        m_downloadFile->flush();
+    recreateMediaPlayer(false);
+    m_player->setNativeVideoEnabled(!m_softwareVideoRouteSelected);
+    m_player->setMedia(QMediaContent(
+        QUrl::fromLocalFile(m_downloadPath)));
+    m_sourceClock.restart();
+    m_lastReportedError = -1;
+    m_localPlaybackActive = true;
+    m_player->play();
+    qDebug() << "WW:PLAYER_LOCAL_OPEN" << reason
+             << m_downloadBytes << m_downloadPath;
     m_overlay->update();
 }
 
@@ -2560,6 +2652,9 @@ void VideoPlayerWidget::pollLocalDownloadFallback()
             qDebug() << "WW:PLAYER_LOCAL_WRITE_FAILED"
                      << written << available.size();
             cancelLocalDownloadFallback(true);
+            m_policyRouteFailed = true;
+            if (m_overlay)
+                m_overlay->update();
             return;
         }
         m_downloadBytes += written;
@@ -2575,7 +2670,14 @@ void VideoPlayerWidget::pollLocalDownloadFallback()
         qDebug() << "WW:PLAYER_LOCAL_TOO_LARGE"
                  << declaredBytes << m_downloadBytes;
         cancelLocalDownloadFallback(true);
+        m_policyRouteFailed = true;
+        if (m_overlay)
+            m_overlay->update();
         return;
+    }
+    if (m_openLocalWhileDownloading && !m_localPlaybackActive &&
+        m_downloadBytes >= KOpenFileStreamingStartBytes) {
+        openLocalDownloadForPlayback("progressive-threshold");
     }
     if (!m_downloadReply->isFinished())
         return;
@@ -2596,26 +2698,38 @@ void VideoPlayerWidget::pollLocalDownloadFallback()
         qDebug() << "WW:PLAYER_LOCAL_FAILED"
                  << status << static_cast<int>(error)
                  << errorText << m_downloadBytes;
+        const bool retryProgressively = m_openLocalWhileDownloading;
+        if (m_localPlaybackActive && m_player) {
+            m_player->stop();
+            m_player->clearMedia();
+            m_localPlaybackActive = false;
+        }
         QFile::remove(m_downloadPath);
-        if (m_downloadSourceIndex + 1 < m_sourceUrls.size())
-            startLocalDownloadFallback(m_downloadSourceIndex + 1);
+        if (m_downloadSourceIndex + 1 < m_sourceUrls.size()) {
+            startLocalDownloadFallback(
+                m_downloadSourceIndex + 1, retryProgressively);
+        } else {
+            m_policyRouteFailed = true;
+            if (m_overlay)
+                m_overlay->update();
+        }
         return;
     }
 
-    recreateMediaPlayer(false);
-    m_player->setMedia(QMediaContent(
-        QUrl::fromLocalFile(m_downloadPath)));
-    m_sourceClock.restart();
-    m_lastReportedError = -1;
-    m_localPlaybackActive = true;
-    m_player->play();
+    if (!m_localPlaybackActive)
+        openLocalDownloadForPlayback("download-complete");
     qDebug() << "WW:PLAYER_LOCAL_READY"
-             << status << m_downloadBytes << m_downloadPath;
+             << status << m_downloadBytes << m_downloadPath
+             << "progressive" << m_openLocalWhileDownloading;
     m_overlay->update();
 }
 
 void VideoPlayerWidget::cancelLocalDownloadFallback(bool removeFile)
 {
+    if (removeFile && m_localPlaybackActive && m_player) {
+        m_player->stop();
+        m_player->clearMedia();
+    }
     if (m_downloadReply) {
         m_downloadReply->abort();
         m_downloadReply->deleteLater();
@@ -2630,6 +2744,8 @@ void VideoPlayerWidget::cancelLocalDownloadFallback(bool removeFile)
         QFile::remove(m_downloadPath);
         m_downloadPath.clear();
     }
+    m_openLocalWhileDownloading = false;
+    m_localPlaybackActive = false;
 }
 
 void VideoPlayerWidget::startAvcHardwareProbeMetadata(int sourceIndex)
@@ -2773,7 +2889,7 @@ void VideoPlayerWidget::requestAvcHardwareSampleBatch(
     if (!m_avcProbeReader || !m_avcProbeReader->isValid() ||
         firstSample < 0 || firstSample >= m_avcProbeReader->sampleCount()) {
         m_avcProbeStage = 4;
-        openDeferredMmfSource("probe-no-sample");
+        handleAvcProbeFailure("probe-no-sample");
         return;
     }
     quint64 firstByte = 0;
@@ -2794,7 +2910,7 @@ void VideoPlayerWidget::requestAvcHardwareSampleBatch(
         m_avcProbeStage = 4;
         if (m_player && m_player->isAvcHardwarePlaybackActive())
             m_player->stopAvcHardwarePlayback();
-        openDeferredMmfSource("probe-range-invalid");
+        handleAvcProbeFailure("probe-range-invalid");
         return;
     }
     requestAvcHardwareProbeRange(
@@ -2826,7 +2942,7 @@ void VideoPlayerWidget::handOffAvcHardwareProbe(
         accessUnits.size() != decodingTimesMilliseconds.size() ||
         accessUnits.size() != presentationTimesMilliseconds.size()) {
         m_avcProbeStage = 4;
-        openDeferredMmfSource("probe-handoff-invalid");
+        handleAvcProbeFailure("probe-handoff-invalid");
         return;
     }
     qDebug() << "WW:DEVVIDEO_PLAYER_HANDOFF"
@@ -2844,7 +2960,7 @@ void VideoPlayerWidget::handOffAvcHardwareProbe(
         openDeferredMmfSource("soft-prefetch-ready");
 
     // MMF must finish Prepare before SetVideoEnabledL(false) can release its
-    // failed video path. Keep the batch while audio initialization completes.
+    // native video track. Keep the batch while AAC initialization completes.
     if (resetDecoder &&
         m_player->mediaStatus() != VideoPlaybackBackend::LoadedMedia) {
         m_avcPendingUnits = accessUnits;
@@ -2854,6 +2970,19 @@ void VideoPlayerWidget::handOffAvcHardwareProbe(
         m_avcProbeStage = 5;
         qDebug() << "WW:DEVVIDEO_PLAYER_WAIT_MMF";
         return;
+    }
+    if (resetDecoder && m_softwareVideoRouteSelected &&
+        !m_player->isNativeVideoPolicyApplied()) {
+        qDebug() << "WW:PLAYER_SOFTWARE_MMF_VIDEO_DISABLE_FAILED"
+                 << "decoder" << m_decoderMode;
+        if (m_decoderMode == SoftwareOnlyDecoder) {
+            m_policyRouteFailed = true;
+            m_avcProbeStage = 4;
+            m_player->stop();
+            if (m_overlay)
+                m_overlay->update();
+            return;
+        }
     }
 
     // The measured three-plane GLES path is not viable on the Nokia 603:
@@ -2877,6 +3006,11 @@ void VideoPlayerWidget::handOffAvcHardwareProbe(
                  << m_player->avcHardwareError();
         if (m_player->isAvcHardwarePlaybackActive())
             m_player->stopAvcHardwarePlayback();
+        if (m_decoderMode == SoftwareOnlyDecoder) {
+            m_policyRouteFailed = true;
+            if (m_overlay)
+                m_overlay->update();
+        }
         return;
     }
     if (resetDecoder) {
@@ -3002,7 +3136,7 @@ void VideoPlayerWidget::pollAvcHardwareProbe()
         m_avcProbeStage = 4;
         if (m_player && m_player->isAvcHardwarePlaybackActive())
             m_player->stopAvcHardwarePlayback();
-        openDeferredMmfSource("probe-range-limit");
+        handleAvcProbeFailure("probe-range-limit");
         return;
     }
     const bool enoughWithoutFinish =
@@ -3022,7 +3156,7 @@ void VideoPlayerWidget::pollAvcHardwareProbe()
         m_avcProbeStage = 4;
         if (m_player && m_player->isAvcHardwarePlaybackActive())
             m_player->stopAvcHardwarePlayback();
-        openDeferredMmfSource("probe-range-timeout");
+        handleAvcProbeFailure("probe-range-timeout");
         return;
     }
     if (!m_avcProbeReply->isFinished() && !enoughWithoutFinish)
@@ -3045,7 +3179,7 @@ void VideoPlayerWidget::pollAvcHardwareProbe()
         m_avcProbeStage = 4;
         if (m_player && m_player->isAvcHardwarePlaybackActive())
             m_player->stopAvcHardwarePlayback();
-        openDeferredMmfSource("probe-range-error");
+        handleAvcProbeFailure("probe-range-error");
         return;
     }
 
@@ -3071,7 +3205,7 @@ void VideoPlayerWidget::pollAvcHardwareProbe()
                 return;
             }
             m_avcProbeStage = 4;
-            openDeferredMmfSource("probe-header-invalid");
+            handleAvcProbeFailure("probe-header-invalid");
             return;
         }
         qDebug() << "WW:DEVVIDEO_MP4_AVC"
@@ -3092,14 +3226,20 @@ void VideoPlayerWidget::pollAvcHardwareProbe()
         if (firstSample < 0) {
             qDebug() << "WW:DEVVIDEO_PLAYER_NO_SYNC_SAMPLE";
             m_avcProbeStage = 4;
-            openDeferredMmfSource("probe-no-sync");
+            handleAvcProbeFailure("probe-no-sync");
             return;
         }
-        // Fetch the smallest legal batch containing the sync picture. Its
-        // Annex-B form includes the avcC SPS/PPS, exactly matching the old
-        // decisive hardware-header control input, but it does not start a
-        // decoder or otherwise disturb the persistent MMF graph.
-        requestAvcHardwareSampleBatch(firstSample, true, true);
+        // Auto mode submits the smallest legal header batch to the read-only
+        // Broadcom preflight. Software-only skips that hardware decision and
+        // immediately asks for a normal FFmpeg prefetch batch from this IDR.
+        const bool headerPreflight =
+            m_decoderMode == AutomaticDecoder;
+        if (!headerPreflight)
+            m_softwareVideoRouteSelected = true;
+        qDebug() << "WW:PLAYER_DECODER_ROUTE"
+                 << (headerPreflight ? "AUTO_PREFLIGHT" : "SOFTWARE");
+        requestAvcHardwareSampleBatch(
+            firstSample, true, headerPreflight);
         return;
     }
 
@@ -3118,7 +3258,7 @@ void VideoPlayerWidget::pollAvcHardwareProbe()
             m_avcProbeStage = 4;
             if (m_player && m_player->isAvcHardwarePlaybackActive())
                 m_player->stopAvcHardwarePlayback();
-            openDeferredMmfSource("probe-convert-error");
+            handleAvcProbeFailure("probe-convert-error");
             return;
         }
         QVector<QByteArray> units;
@@ -3143,7 +3283,7 @@ void VideoPlayerWidget::pollAvcHardwareProbe()
                 qDebug() << "WW:DEVVIDEO_HEADER_PREFLIGHT_ROUTE"
                          << "MMF" << "no-player";
                 m_avcProbeStage = 4;
-                openDeferredMmfSource("probe-header-no-player");
+                handleAvcProbeFailure("probe-header-no-player");
                 return;
             }
             int headerError = 0;
@@ -3163,6 +3303,7 @@ void VideoPlayerWidget::pollAvcHardwareProbe()
             // audio/MMF handoff behaviour of the software path.
             qDebug() << "WW:DEVVIDEO_HEADER_PREFLIGHT_ROUTE"
                      << "FFMPEG" << headerError;
+            m_softwareVideoRouteSelected = true;
             requestAvcHardwareSampleBatch(
                 m_avcProbeFirstSample, true, false);
             return;
@@ -3293,6 +3434,10 @@ QString VideoPlayerWidget::qualityLabel() const
 
 QString VideoPlayerWidget::playbackStatus() const
 {
+    if (m_policyRouteFailed)
+        return m_decoderMode == SoftwareOnlyDecoder
+            ? QString::fromLatin1("SWERR")
+            : QString::fromLatin1("DLERR");
     if (m_downloadReply)
         return QString::fromLatin1("DL%1M")
             .arg(m_downloadBytes / (1024 * 1024));

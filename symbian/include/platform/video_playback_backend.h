@@ -70,6 +70,8 @@ public:
     int error() const;
     QString errorString() const;
     bool isVideoAvailable() const;
+    void setNativeVideoEnabled(bool enabled);
+    bool isNativeVideoPolicyApplied() const;
     AvcHeaderProbeResult probeAvcHardwareHeader(
         const QByteArray &annexBAccessUnit,
         int *errorCode);

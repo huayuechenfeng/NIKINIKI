@@ -1,6 +1,6 @@
 TEMPLATE = app
 TARGET = wiliwili_symbian
-VERSION = 1.0.0
+VERSION = 1.1.0
 DEFINES += WILIWILI_SYMBIAN_VERSION_STR=\"$$VERSION\"
 
 # NIKINIKI is the public product name. Keep the proven executable target,
@@ -36,7 +36,7 @@ QMAKE_CFLAGS.GCCE += -std=gnu99
 DEFINES += STBI_NO_THREAD_LOCALS NANOVG_GLES2
 DEFINES += MG_ARCH=MG_ARCH_NEWLIB
 
-# 1.0 mainline: MMF remains the first path for compatible streams, while the
+# Mainline: MMF remains the first path for compatible streams, while the
 # on-phone PPSSPP-FFmpeg H.264 fallback is compiled into every normal package.
 # The optimized CPU RGB565 path is the ffmpegsoft2 renderer used by the normal
 # soft fallback. Its H.264 hot paths remain generic C because this CPU has
@@ -58,7 +58,7 @@ equals(FFMPEG_SOFT_BUILD, 1) {
     } else {
         message(FFmpeg soft fallback: full loop filter A/B baseline)
     }
-    message(Enabling 1.0 mainline PPSSPP-FFmpeg H.264 fallback)
+    message(Enabling mainline PPSSPP-FFmpeg H.264 fallback)
 }
 
 # Keep UDEB diagnostics detailed, but make UREL suitable for real-device

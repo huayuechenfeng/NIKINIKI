@@ -351,6 +351,8 @@ WiliwiliWidget::WiliwiliWidget(QWidget *parent)
        m_contentImageIndex(0),
        m_contentImageGeneration(0),
        m_contentImageLimit(14),
+       m_playbackMode(VideoPlayerWidget::UrlStreamingPlayback),
+       m_decoderMode(VideoPlayerWidget::AutomaticDecoder),
        m_contentAppend(false),
        m_contentCanLoadMore(false),
        m_contentPage(1),
@@ -418,7 +420,23 @@ WiliwiliWidget::WiliwiliWidget(QWidget *parent)
     m_contentImageLimit = startupSettings.value(
         QString::fromLatin1("ui/content_images"), 14).toInt() > 0
         ? 14 : 0;
+    m_playbackMode = qBound(
+        static_cast<int>(VideoPlayerWidget::UrlStreamingPlayback),
+        startupSettings.value(
+            QString::fromLatin1("player/playback_mode"),
+            static_cast<int>(
+                VideoPlayerWidget::UrlStreamingPlayback)).toInt(),
+        static_cast<int>(VideoPlayerWidget::DownloadThenPlayback));
+    m_decoderMode = qBound(
+        static_cast<int>(VideoPlayerWidget::AutomaticDecoder),
+        startupSettings.value(
+            QString::fromLatin1("player/decoder_mode"),
+            static_cast<int>(
+                VideoPlayerWidget::AutomaticDecoder)).toInt(),
+        static_cast<int>(VideoPlayerWidget::SoftwareOnlyDecoder));
     m_sectionScreen.setImageLoadingEnabled(m_contentImageLimit > 0);
+    m_sectionScreen.setPlaybackPreferences(
+        m_playbackMode, m_decoderMode);
     // Native HTTP callbacks finish asynchronously, but their results were
     // consumed only once per second. A 250 ms pump starts the next thumbnail
     // promptly; memory sampling remains throttled to once per second below.
@@ -2932,6 +2950,8 @@ void WiliwiliWidget::openVideoPlayback(
         qDebug() << "WW:PLAYER_SESSION_OBJECT_NEW"
                  << static_cast<void *>(m_videoPlayer);
     }
+    m_videoPlayer->setPlaybackPreferences(
+        m_playbackMode, m_decoderMode);
     suspendForegroundRestoreForPlayer();
     m_hasActivated = false;
     if (!m_playbackQualitySwitch)
@@ -3204,6 +3224,47 @@ void WiliwiliWidget::toggleContentImages()
         m_contentImageLimit > 0
             ? QString::fromUtf8("列表缩略图已开启")
             : QString::fromUtf8("列表缩略图已关闭"));
+}
+
+void WiliwiliWidget::cyclePlaybackMode()
+{
+    m_playbackMode = (m_playbackMode + 1) % 3;
+    QSettings settings(
+        QSettings::IniFormat, QSettings::UserScope,
+        QString::fromLatin1("wiliwili"),
+        QString::fromLatin1("wiliwili_symbian"));
+    settings.setValue(
+        QString::fromLatin1("player/playback_mode"), m_playbackMode);
+    settings.sync();
+    m_sectionScreen.setPlaybackPreferences(
+        m_playbackMode, m_decoderMode);
+    m_sectionScreen.setStatus(
+        m_playbackMode == VideoPlayerWidget::UrlStreamingPlayback
+            ? QString::fromUtf8("播放方式：流式播放（OpenUrlL）")
+            : m_playbackMode ==
+                  VideoPlayerWidget::OpenFileStreamingPlayback
+            ? QString::fromUtf8("播放方式：OpenFileL 边下边播")
+            : QString::fromUtf8("播放方式：下载后播放"));
+}
+
+void WiliwiliWidget::cycleDecoderMode()
+{
+    m_decoderMode = (m_decoderMode + 1) % 3;
+    QSettings settings(
+        QSettings::IniFormat, QSettings::UserScope,
+        QString::fromLatin1("wiliwili"),
+        QString::fromLatin1("wiliwili_symbian"));
+    settings.setValue(
+        QString::fromLatin1("player/decoder_mode"), m_decoderMode);
+    settings.sync();
+    m_sectionScreen.setPlaybackPreferences(
+        m_playbackMode, m_decoderMode);
+    m_sectionScreen.setStatus(
+        m_decoderMode == VideoPlayerWidget::AutomaticDecoder
+            ? QString::fromUtf8("解码方式：自动选择")
+            : m_decoderMode == VideoPlayerWidget::HardwareOnlyDecoder
+            ? QString::fromUtf8("解码方式：全程硬解")
+            : QString::fromUtf8("解码方式：全程软解"));
 }
 
 void WiliwiliWidget::promptSearch()
@@ -3918,8 +3979,8 @@ void WiliwiliWidget::openContentItem(int index)
 void WiliwiliWidget::clearAppCache()
 {
     // The only on-disk cache in this port is the temporary local MP4 used by
-    // the FFmpeg software fallback. Normal close already removes it; this
-    // option cleans leftovers from crashes/force exits.
+    // OpenFileL playback and the bounded download fallback. Normal close
+    // removes it; this option cleans leftovers from crashes/force exits.
     qint64 freedBytes = 0;
     const QString cachePath = QDir::tempPath() +
         QString::fromLatin1("/wiliwili_player_cache.mp4");
@@ -4133,6 +4194,10 @@ void WiliwiliWidget::mouseReleaseEvent(QMouseEvent *event)
                 requestNetworkDiagnostic();
             else if (action == SectionScreen::ToggleImagesAction)
                 toggleContentImages();
+            else if (action == SectionScreen::CyclePlaybackModeAction)
+                cyclePlaybackMode();
+            else if (action == SectionScreen::CycleDecoderModeAction)
+                cycleDecoderMode();
             else if (action == SectionScreen::ClearCacheAction)
                 clearAppCache();
             else if (action == SectionScreen::AboutAction) {

@@ -6,6 +6,8 @@ historical names remain unchanged for compatibility and traceability.
 
 ## Current status
 
+- The current development mainline is version 1.1.0; 1.0.0 remains the latest
+  formally signed and published release until 1.1 device validation completes.
 - Version 1.0.0 is the formal release: compatible AVC
   keeps the native MMF route; the known weighted/7-reference AVC template
   uses the on-phone PPSSPP-FFmpeg H.264 fallback with the existing CPU

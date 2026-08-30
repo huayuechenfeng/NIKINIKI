@@ -597,7 +597,9 @@ public:
           currentStatus(NoMedia), currentError(NoError), currentDuration(0),
           currentVolume(80), mediaSessionSerial(0),
           requestedRate(1.0), playWhenReady(false),
-          videoAvailable(false), devVideoProbeState(0),
+          videoAvailable(false), nativeVideoEnabledRequested(true),
+          nativeVideoPolicyApplied(true), nativeVideoPolicyError(0),
+          devVideoProbeState(0),
           devVideoProbeError(0), devVideoProbePictures(0),
           devVideoFrameTimestamp(0), devVideoFrameSerial(0),
           devVideoCodedWidth(0), devVideoCodedHeight(0),
@@ -800,6 +802,25 @@ public:
                  << "actual" << actual;
     }
 
+    void applyNativeVideoPolicy(TBool *nativeVideoEnabled)
+    {
+        nativeVideoPolicyError = KErrNone;
+        nativeVideoPolicyApplied = nativeVideoEnabledRequested;
+        if (!player || nativeVideoEnabledRequested)
+            return;
+        TRAP(nativeVideoPolicyError,
+             player->SetVideoEnabledL(EFalse));
+        nativeVideoPolicyApplied =
+            nativeVideoPolicyError == KErrNone ||
+            (nativeVideoEnabled && !*nativeVideoEnabled);
+        if (nativeVideoPolicyError == KErrNone && nativeVideoEnabled)
+            *nativeVideoEnabled = EFalse;
+        qDebug() << "WW:NATIVE_MMF_VIDEO_POLICY"
+                 << "enabled" << nativeVideoEnabledRequested
+                 << "error" << nativeVideoPolicyError
+                 << "applied" << nativeVideoPolicyApplied;
+    }
+
     void logNativeAudioState(const char *stage)
     {
         if (!player)
@@ -934,6 +955,7 @@ public:
                  << partialPlayback
                  << videoEnabledError << static_cast<bool>(nativeVideoEnabled)
                  << audioEnabledError << static_cast<bool>(nativeAudioEnabled);
+        applyNativeVideoPolicy(&nativeVideoEnabled);
         qDebug() << "WW:NATIVE_MMF_STAGE" << 70 << "duration-before";
         TTimeIntervalMicroSeconds nativeDuration;
         TRAPD(durationError, nativeDuration = player->DurationL());
@@ -1626,6 +1648,9 @@ public:
     qreal requestedRate;
     bool playWhenReady;
     bool videoAvailable;
+    bool nativeVideoEnabledRequested;
+    bool nativeVideoPolicyApplied;
+    int nativeVideoPolicyError;
     int devVideoProbeState;
     int devVideoProbeError;
     int devVideoProbePictures;
@@ -1887,6 +1912,30 @@ bool VideoPlaybackBackend::isVideoAvailable() const
         return true;
 #endif
     return m_impl->videoAvailable;
+}
+
+void VideoPlaybackBackend::setNativeVideoEnabled(bool enabled)
+{
+    m_impl->nativeVideoEnabledRequested = enabled;
+    m_impl->nativeVideoPolicyApplied = enabled;
+    m_impl->nativeVideoPolicyError = 0;
+#ifdef Q_OS_SYMBIAN
+    if (m_impl->currentStatus == LoadedMedia) {
+        TBool nativeVideoEnabled = ETrue;
+        TRAPD(videoEnabledError,
+              nativeVideoEnabled = m_impl->player->VideoEnabledL());
+        if (videoEnabledError != KErrNone)
+            nativeVideoEnabled = ETrue;
+        m_impl->applyNativeVideoPolicy(&nativeVideoEnabled);
+        if (!enabled && m_impl->nativeVideoPolicyApplied)
+            m_impl->videoAvailable = false;
+    }
+#endif
+}
+
+bool VideoPlaybackBackend::isNativeVideoPolicyApplied() const
+{
+    return m_impl->nativeVideoPolicyApplied;
 }
 
 VideoPlaybackBackend::AvcHeaderProbeResult

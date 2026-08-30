@@ -49,11 +49,24 @@ class VideoPlayerWidget : public QWidget
     Q_OBJECT
 
 public:
+    enum PlaybackMode {
+        UrlStreamingPlayback = 0,
+        OpenFileStreamingPlayback = 1,
+        DownloadThenPlayback = 2
+    };
+
+    enum DecoderMode {
+        AutomaticDecoder = 0,
+        HardwareOnlyDecoder = 1,
+        SoftwareOnlyDecoder = 2
+    };
+
     VideoPlayerWidget(
         QWidget *returnWidget,
         VideoPlayerDelegate *delegate);
     virtual ~VideoPlayerWidget();
 
+    void setPlaybackPreferences(int playbackMode, int decoderMode);
     void openSource(
         const PlaybackSourceCompat &source,
         const QString &title,
@@ -118,10 +131,14 @@ private:
     void releasePlaybackSurfaceForOrientation();
     void recreateMediaPlayer(bool streamPlayback);
     void loadSourceAt(int index);
+    void openSelectedPlaybackSourceAt(int index, const char *reason);
     void openMmfSourceAt(int index, const char *reason);
     void openDeferredMmfSource(const char *reason);
+    void handleAvcProbeFailure(const char *reason);
     void scheduleSourceAt(int index, int delayMilliseconds);
-    void startLocalDownloadFallback(int sourceIndex);
+    void startLocalDownloadFallback(
+        int sourceIndex, bool openWhileDownloading = false);
+    void openLocalDownloadForPlayback(const char *reason);
     void pollLocalDownloadFallback();
     void cancelLocalDownloadFallback(bool removeFile);
     void startAvcHardwareProbeMetadata(int sourceIndex);
@@ -215,11 +232,16 @@ private:
     QString m_downloadPath;
     QTime m_sourceClock;
     int m_automaticFallbackTarget;
+    int m_playbackMode;
+    int m_decoderMode;
     bool m_closing;
     bool m_isLive;
     bool m_streamPlaybackMode;
     bool m_localFallbackAttempted;
     bool m_localPlaybackActive;
+    bool m_openLocalWhileDownloading;
+    bool m_policyRouteFailed;
+    bool m_softwareVideoRouteSelected;
     bool m_landscapeRequested;
     bool m_landscapeApplied;
     NativeOrientationStage m_orientationStage;

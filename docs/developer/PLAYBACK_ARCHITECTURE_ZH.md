@@ -1,7 +1,7 @@
 # NIKINIKI 播放器架构
 
 > 状态：Active
-> 适用版本：1.0.0 与当前主线
+> 适用版本：1.1 当前主线
 > 验证基线：Nokia 603 / Nokia Belle
 > 本页职责：播放器当前实现的唯一结构说明
 
@@ -23,6 +23,29 @@ Bilibili progressive MP4
 ```
 
 一个会话只允许一次有方向的后端选择，不在清晰度、CDN 和后端之间循环。
+
+## 用户播放策略
+
+设置页保存两个彼此独立的点播 MP4 策略；默认值仍是原有的“流式播放 + 自动选择”，
+升级安装不会改变既有播放行为。
+
+| 设置 | 选项 | 实际路径 |
+|---|---|---|
+| 播放方式 | 流式播放 | MMF 直接 `OpenUrlL()`；原有 URL 全部失败后仍可做一次完整下载回退 |
+| 播放方式 | OpenFile 流式播放 | 网络写入临时 MP4；写入并 flush 至 2 MiB 后以 `OpenFileL()` 打开，下载继续追加；不足 2 MiB 的短文件在完成后打开 |
+| 播放方式 | 下载后播放 | 完整下载临时 MP4 后再调用 `OpenFileL()` |
+| 解码方式 | 自动选择 | 保留 Broadcom header preflight：接受走 MMF，明确拒绝走 FFmpeg |
+| 解码方式 | 全程硬解 | 跳过 header preflight，直接走所选 MMF 传输路径，绝不进入 FFmpeg；固件不支持时允许失败或黑屏 |
+| 解码方式 | 全程软解 | 跳过 Broadcom 能力决定，MP4 Range 解析后直接启动 FFmpeg 视频；MMF 在 `Prepare` 后、`Play` 前执行 `SetVideoEnabledL(false)`，只保留 AAC/时钟；禁用视频轨、解析或软件初始化失败时显示 `SWERR`，不暗中切回 MMF 视频 |
+
+播放会话开始时锁定当次策略，设置变更从下一次播放生效。两种 `OpenFileL()` 路径共用单一、
+有 96 MiB 上限的临时缓存，关闭播放器时删除。当前 Range/FFmpeg 管线只支持 progressive MP4；
+直播仍固定使用原有 `OpenUrlL()` + MMF，若选择了不适用于直播的策略会记录
+`PLAYER_POLICY_LIVE_USES_OPENURL_MMF`，不会伪装成已经执行。
+
+`OpenFileL()` 边下边播是为区分旧机型 MMF streaming controller 与本地 controller 而加入的
+产品可选路径。代码和 GCCE 构建只能证明路由存在；增长中文件能否被各固件持续读取、是否解决
+N8/X7/C7 的“有声无画”，必须分别真机验证，不能从系统播放器能播放本地完整文件直接推断。
 
 ## Header preflight
 
@@ -50,6 +73,7 @@ Broadcom 接受 header 或 preflight 无法安全完成时，媒体交给
 - 裁剪的 PPSSPP-FFmpeg/libavcodec 由 GCCE 4.4.1 从固定源码重建；
 - 解码线程消费 Annex-B access unit，并保留 MP4 `ctts` version 0/1 产生的 DTS 与 PTS；
 - AAC 继续由 MMF 播放，MMF position 是主时钟；
+- 软件视频路由在 MMF `Prepare` 完成后先禁用 MMF video track，再允许 `Play()`；
 - 队列有界，消费端先选择 stale/drop 后的目标帧，再转换为 RGB565；
 - 转换使用 CPU YUV420P→RGB565 LUT2X2；
 - 当前普通构建启用 ARMv6/VFP、ARM assembly、`-Os`，禁用 NEON；
@@ -122,6 +146,8 @@ pause、seek、倍速、媒体会话变化会使缓存失效。普通 MMF 播放
 
 关键验证标记包括：
 
+- 设置与传输：`PLAYER_POLICY`、`PLAYER_DECODER_ROUTE`、`PLAYER_LOCAL_ROUTE`、
+  `PLAYER_LOCAL_OPEN`、`NATIVE_MMF_OPEN`；
 - 选路：`DEVVIDEO_HEADER_PREFLIGHT_ACCEPT/REJECT/ROUTE`；
 - 横屏：`PLAYER_NATIVE_LANDSCAPE_640X360_READY`、`PLAYER_NATIVE_LANDSCAPE_VISIBLE`；
 - soft：`FFMPEG_SOFT_READY ... RGB565_LUT2X2`、`SOFT_SURFACE_ACTIVE`、
@@ -134,6 +160,8 @@ pause、seek、倍速、媒体会话变化会使缓存失效。普通 MMF 播放
 ## 失败与回退
 
 - Range 或 preflight 获取失败：记录原因并保守尝试 MMF；
+- 全程软解时 Range/MP4 解析失败：显示 `SWERR`，不回退 MMF 视频；
+- OpenFile 下载失败：按备用 URL 单向尝试，全部失败后显示 `DLERR`；
 - MMF 硬件视频不可用且 preflight 已拒绝：进入本机 FFmpeg；
 - 软件解码初始化、内存、编码或性能不可接受：显示明确错误；外部播放器交接仍是待实现产品项；
 - 任何失败都不得泄露 Cookie、完整签名 URL 或触发无限重试。

@@ -4,7 +4,7 @@
 #include <QtCore/QtGlobal>
 
 #ifndef WILIWILI_SYMBIAN_VERSION_STR
-#define WILIWILI_SYMBIAN_VERSION_STR "1.0.0"
+#define WILIWILI_SYMBIAN_VERSION_STR "1.1.0"
 #endif
 
 namespace wiliwili {
@@ -37,7 +37,8 @@ SectionScreen::SectionScreen()
       m_canLoadMore(false), m_loadMoreArmed(false),
       m_scroll(0.0f), m_minScroll(0.0f), m_pullDistance(0.0f),
       m_lastWidth(360.0f), m_lastHeight(640.0f), m_itemTop(76.0f),
-      m_messageTab(0), m_imageLoadingEnabled(true), m_aboutVisible(false)
+      m_messageTab(0), m_imageLoadingEnabled(true),
+      m_playbackMode(0), m_decoderMode(0), m_aboutVisible(false)
 {
     m_status = QString::fromLatin1("READY");
 }
@@ -60,6 +61,13 @@ void SectionScreen::setMessageTab(int tab)
 void SectionScreen::setImageLoadingEnabled(bool enabled)
 {
     m_imageLoadingEnabled = enabled;
+}
+
+void SectionScreen::setPlaybackPreferences(
+    int playbackMode, int decoderMode)
+{
+    m_playbackMode = qBound(0, playbackMode, 2);
+    m_decoderMode = qBound(0, decoderMode, 2);
 }
 
 void SectionScreen::setAboutVisible(bool visible)
@@ -545,6 +553,8 @@ void SectionScreen::draw(NVGcontext *context, float width, float height)
     m_exitHitBox = QRectF();
     m_networkHitBox = QRectF();
     m_imagesHitBox = QRectF();
+    m_playbackModeHitBox = QRectF();
+    m_decoderModeHitBox = QRectF();
     if (m_section == NavigationRail::MessagesSection) {
         const float quickGap = 7.0f;
         const float quickWidth = (cardWidth - quickGap * 2.0f) / 3.0f;
@@ -687,7 +697,7 @@ void SectionScreen::draw(NVGcontext *context, float width, float height)
     } else {
         const float cardHeight = 82.0f;
         const float cardGap = 12.0f;
-        const int cardCount = 7;
+        const int cardCount = 9;
         const float cardsTop = 76.0f;
         const float buttonY = contentBottom - 48.0f;
         const float cardsBottom = buttonY - 8.0f;
@@ -700,6 +710,8 @@ void SectionScreen::draw(NVGcontext *context, float width, float height)
 
         m_networkHitBox = QRectF(cardX, cardY, cardWidth, cardHeight);
         m_imagesHitBox = QRectF();
+        m_playbackModeHitBox = QRectF();
+        m_decoderModeHitBox = QRectF();
         m_cacheHitBox = QRectF();
         m_aboutHitBox = QRectF();
         nvgSave(context);
@@ -717,6 +729,38 @@ void SectionScreen::draw(NVGcontext *context, float width, float height)
                          ? QString::fromLatin1("IMAGES ON")
                          : QString::fromLatin1("IMAGES OFF"),
                      QString::fromUtf8("点击切换列表缩略图（节省内存/流量）"));
+        cardY += cardHeight + cardGap;
+        m_playbackModeHitBox = QRectF(
+            cardX, cardY, cardWidth, cardHeight);
+        const QString playbackTitles[] = {
+            QString::fromLatin1("PLAYBACK / OPENURL"),
+            QString::fromLatin1("PLAYBACK / OPENFILE"),
+            QString::fromLatin1("PLAYBACK / DOWNLOAD")
+        };
+        const QString playbackSubtitles[] = {
+            QString::fromUtf8("流式播放：MMF OpenUrlL（默认）"),
+            QString::fromUtf8("边下边播：缓存增长时 MMF OpenFileL"),
+            QString::fromUtf8("完整下载后使用 MMF OpenFileL")
+        };
+        drawInfoCard(context, cardX, cardY, cardWidth,
+                     playbackTitles[m_playbackMode],
+                     playbackSubtitles[m_playbackMode]);
+        cardY += cardHeight + cardGap;
+        m_decoderModeHitBox = QRectF(
+            cardX, cardY, cardWidth, cardHeight);
+        const QString decoderTitles[] = {
+            QString::fromLatin1("DECODER / AUTO"),
+            QString::fromLatin1("DECODER / HARDWARE"),
+            QString::fromLatin1("DECODER / SOFTWARE")
+        };
+        const QString decoderSubtitles[] = {
+            QString::fromUtf8("自动选择：兼容时硬解，否则本机软解"),
+            QString::fromUtf8("全程硬解：不兼容视频可能黑屏"),
+            QString::fromUtf8("全程软解：仅点播 MP4，速度较慢")
+        };
+        drawInfoCard(context, cardX, cardY, cardWidth,
+                     decoderTitles[m_decoderMode],
+                     decoderSubtitles[m_decoderMode]);
         cardY += cardHeight + cardGap;
         m_cacheHitBox = QRectF(cardX, cardY, cardWidth, cardHeight);
         drawInfoCard(context, cardX, cardY, cardWidth,
@@ -762,6 +806,8 @@ void SectionScreen::draw(NVGcontext *context, float width, float height)
     if (m_section != NavigationRail::SettingsSection) {
         m_networkHitBox = QRectF();
         m_imagesHitBox = QRectF();
+        m_playbackModeHitBox = QRectF();
+        m_decoderModeHitBox = QRectF();
         m_cacheHitBox = QRectF();
         m_aboutHitBox = QRectF();
     }
@@ -833,6 +879,12 @@ SectionScreen::Action SectionScreen::pointerRelease(
     if (m_section == NavigationRail::SettingsSection &&
         m_imagesHitBox.contains(QPointF(position)))
         return ToggleImagesAction;
+    if (m_section == NavigationRail::SettingsSection &&
+        m_playbackModeHitBox.contains(QPointF(position)))
+        return CyclePlaybackModeAction;
+    if (m_section == NavigationRail::SettingsSection &&
+        m_decoderModeHitBox.contains(QPointF(position)))
+        return CycleDecoderModeAction;
     if (m_section == NavigationRail::SettingsSection &&
         m_cacheHitBox.contains(QPointF(position)))
         return ClearCacheAction;

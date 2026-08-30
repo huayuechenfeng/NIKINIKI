@@ -29,7 +29,7 @@ if (-not $makeCommand) {
     throw 'No make command was found in the active Symbian SDK environment.'
 }
 
-# 1.0 mainline always ships the ffmpegsoft2 software fallback.  Keep the
+# The mainline always ships the ffmpegsoft2 software fallback.  Keep the
 # legacy -Variant values accepted below so old diagnostic build commands still
 # work, but do not let omission of a variant silently produce an MMF-only app.
 $ffmpegLibraryDirectory = Join-Path $PSScriptRoot 'third_party\ppsspp_ffmpeg\lib\gcce'
@@ -60,7 +60,7 @@ foreach ($mode in @('udeb', 'urel')) {
         }
     }
 }
-Write-Host 'Staged 1.0 mainline PPSSPP-FFmpeg archives in the Symbian SDK armv5 library directories.'
+Write-Host 'Staged mainline PPSSPP-FFmpeg archives in the Symbian SDK armv5 library directories.'
 
 New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
 # Qt 4.7's Symbian qmake generator resolves source and qrc paths incorrectly

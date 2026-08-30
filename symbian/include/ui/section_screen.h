@@ -24,6 +24,8 @@ public:
         ChatTabAction,
         NetworkTestAction,
         ToggleImagesAction,
+        CyclePlaybackModeAction,
+        CycleDecoderModeAction,
         ClearCacheAction,
         AboutAction,
         AboutBackAction,
@@ -40,6 +42,7 @@ public:
     void setStatus(const QString &status);
     void setMessageTab(int tab);
     void setImageLoadingEnabled(bool enabled);
+    void setPlaybackPreferences(int playbackMode, int decoderMode);
     void setAboutVisible(bool visible);
     bool aboutVisible() const;
     void setItems(const QVector<ContentItemCompat> &items);
@@ -127,11 +130,15 @@ private:
     QRectF m_chatTabHitBox;
     QRectF m_networkHitBox;
     QRectF m_imagesHitBox;
+    QRectF m_playbackModeHitBox;
+    QRectF m_decoderModeHitBox;
     QRectF m_cacheHitBox;
     QRectF m_aboutHitBox;
     QRectF m_aboutBackHitBox;
     int m_messageTab;
     bool m_imageLoadingEnabled;
+    int m_playbackMode;
+    int m_decoderMode;
     bool m_aboutVisible;
     QVector<ContentItemCompat> m_items;
 };
