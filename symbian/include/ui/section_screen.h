@@ -24,14 +24,27 @@ public:
         ChatTabAction,
         NetworkTestAction,
         ToggleImagesAction,
-        CyclePlaybackModeAction,
-        CycleDecoderModeAction,
+        OpenPlaybackModeAction,
+        OpenDecoderModeAction,
+        SelectUrlStreamingAction,
+        SelectOpenFileStreamingAction,
+        SelectDownloadThenPlaybackAction,
+        SelectAutomaticDecoderAction,
+        SelectHardwareOnlyDecoderAction,
+        SelectSoftwareOnlyDecoderAction,
+        PreferenceBackAction,
         ClearCacheAction,
         AboutAction,
         AboutBackAction,
         RefreshAction,
         LoadMoreAction,
         ItemActionBase = 100
+    };
+
+    enum PreferencePage {
+        NoPreferencePage = 0,
+        PlaybackPreferencePage = 1,
+        DecoderPreferencePage = 2
     };
 
     SectionScreen();
@@ -43,6 +56,8 @@ public:
     void setMessageTab(int tab);
     void setImageLoadingEnabled(bool enabled);
     void setPlaybackPreferences(int playbackMode, int decoderMode);
+    void setPreferencePage(PreferencePage page);
+    bool preferencePageVisible() const;
     void setAboutVisible(bool visible);
     bool aboutVisible() const;
     void setItems(const QVector<ContentItemCompat> &items);
@@ -96,6 +111,11 @@ private:
         NVGcontext *context,
         float left,
         float width);
+    void drawPreferencePage(
+        NVGcontext *context,
+        float left,
+        float width,
+        float height);
     void drawDynamicCard(
         NVGcontext *context,
         const ContentItemCompat &item,
@@ -135,10 +155,13 @@ private:
     QRectF m_cacheHitBox;
     QRectF m_aboutHitBox;
     QRectF m_aboutBackHitBox;
+    QRectF m_preferenceBackHitBox;
+    QRectF m_preferenceOptionHitBoxes[3];
     int m_messageTab;
     bool m_imageLoadingEnabled;
     int m_playbackMode;
     int m_decoderMode;
+    PreferencePage m_preferencePage;
     bool m_aboutVisible;
     QVector<ContentItemCompat> m_items;
 };

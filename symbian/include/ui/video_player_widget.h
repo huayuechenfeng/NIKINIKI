@@ -12,7 +12,6 @@
 
 class QCloseEvent;
 class QEvent;
-class QFile;
 class QKeyEvent;
 class QMouseEvent;
 class QNetworkAccessManager;
@@ -23,6 +22,7 @@ class QResizeEvent;
 
 namespace wiliwili {
 
+class LocalDownloadWriter;
 class Mp4AvcProbeReader;
 class SoftVideoSurfaceWidget;
 class VideoOverlayWidget;
@@ -184,7 +184,7 @@ private:
     VideoPlaybackBackend *m_player;
     QNetworkAccessManager *m_downloadManager;
     QNetworkReply *m_downloadReply;
-    QFile *m_downloadFile;
+    LocalDownloadWriter *m_downloadFile;
     Mp4AvcProbeReader *m_avcProbeReader;
     QNetworkReply *m_avcProbeReply;
     QByteArray m_avcProbeBytes;
@@ -229,6 +229,7 @@ private:
     int m_sourcePass;
     int m_downloadSourceIndex;
     qint64 m_downloadBytes;
+    qint64 m_downloadTotalBytes;
     QString m_downloadPath;
     QTime m_sourceClock;
     int m_automaticFallbackTarget;

@@ -32,6 +32,8 @@
 - 核验 Qt 4.7.4、Qt Mobility 1.2.x、TLS、冷启动、首页图片、登录和播放；
 - 在 N8/X7/C7 Belle 对同一 MP4 固定“全程硬解”，依次比较 `OpenUrlL`、
   增长文件 `OpenFileL`、完整下载 `OpenFileL`，禁止同时改变清晰度或解码器；
+- Nokia 603 已通过共享 `RFile` 增长文件与 best-effort 软件视频轨关闭复测；继续确认 8 MiB
+  起播预缓冲的开头流畅度，以及完整下载模式的文件大小、百分比和进度条显示；
 - 若两个 `OpenFileL` 路径有画面而 `OpenUrlL` 黑屏，归因到 MMF streaming/controller；
   若三个应用内路径均黑而系统播放器播放同一本地文件正常，再进入 RWindow/Surface 显示链调查；
 - 收集系统版本、设备型号、运行库版本和完整结果，不把“预期兼容”记为通过。

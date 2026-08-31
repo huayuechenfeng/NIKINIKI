@@ -3226,9 +3226,11 @@ void WiliwiliWidget::toggleContentImages()
             : QString::fromUtf8("列表缩略图已关闭"));
 }
 
-void WiliwiliWidget::cyclePlaybackMode()
+void WiliwiliWidget::setPlaybackMode(int mode)
 {
-    m_playbackMode = (m_playbackMode + 1) % 3;
+    m_playbackMode = qBound(
+        static_cast<int>(VideoPlayerWidget::UrlStreamingPlayback), mode,
+        static_cast<int>(VideoPlayerWidget::DownloadThenPlayback));
     QSettings settings(
         QSettings::IniFormat, QSettings::UserScope,
         QString::fromLatin1("wiliwili"),
@@ -3238,6 +3240,8 @@ void WiliwiliWidget::cyclePlaybackMode()
     settings.sync();
     m_sectionScreen.setPlaybackPreferences(
         m_playbackMode, m_decoderMode);
+    m_sectionScreen.setPreferencePage(
+        SectionScreen::NoPreferencePage);
     m_sectionScreen.setStatus(
         m_playbackMode == VideoPlayerWidget::UrlStreamingPlayback
             ? QString::fromUtf8("播放方式：流式播放（OpenUrlL）")
@@ -3247,9 +3251,11 @@ void WiliwiliWidget::cyclePlaybackMode()
             : QString::fromUtf8("播放方式：下载后播放"));
 }
 
-void WiliwiliWidget::cycleDecoderMode()
+void WiliwiliWidget::setDecoderMode(int mode)
 {
-    m_decoderMode = (m_decoderMode + 1) % 3;
+    m_decoderMode = qBound(
+        static_cast<int>(VideoPlayerWidget::AutomaticDecoder), mode,
+        static_cast<int>(VideoPlayerWidget::SoftwareOnlyDecoder));
     QSettings settings(
         QSettings::IniFormat, QSettings::UserScope,
         QString::fromLatin1("wiliwili"),
@@ -3259,6 +3265,8 @@ void WiliwiliWidget::cycleDecoderMode()
     settings.sync();
     m_sectionScreen.setPlaybackPreferences(
         m_playbackMode, m_decoderMode);
+    m_sectionScreen.setPreferencePage(
+        SectionScreen::NoPreferencePage);
     m_sectionScreen.setStatus(
         m_decoderMode == VideoPlayerWidget::AutomaticDecoder
             ? QString::fromUtf8("解码方式：自动选择")
@@ -4194,11 +4202,36 @@ void WiliwiliWidget::mouseReleaseEvent(QMouseEvent *event)
                 requestNetworkDiagnostic();
             else if (action == SectionScreen::ToggleImagesAction)
                 toggleContentImages();
-            else if (action == SectionScreen::CyclePlaybackModeAction)
-                cyclePlaybackMode();
-            else if (action == SectionScreen::CycleDecoderModeAction)
-                cycleDecoderMode();
-            else if (action == SectionScreen::ClearCacheAction)
+            else if (action == SectionScreen::OpenPlaybackModeAction) {
+                m_sectionScreen.setPreferencePage(
+                    SectionScreen::PlaybackPreferencePage);
+                updateGL();
+            } else if (action == SectionScreen::OpenDecoderModeAction) {
+                m_sectionScreen.setPreferencePage(
+                    SectionScreen::DecoderPreferencePage);
+                updateGL();
+            } else if (action >= SectionScreen::SelectUrlStreamingAction &&
+                       action <=
+                           SectionScreen::SelectDownloadThenPlaybackAction) {
+                setPlaybackMode(
+                    static_cast<int>(action) -
+                    static_cast<int>(
+                        SectionScreen::SelectUrlStreamingAction));
+                updateGL();
+            } else if (action >=
+                           SectionScreen::SelectAutomaticDecoderAction &&
+                       action <=
+                           SectionScreen::SelectSoftwareOnlyDecoderAction) {
+                setDecoderMode(
+                    static_cast<int>(action) -
+                    static_cast<int>(
+                        SectionScreen::SelectAutomaticDecoderAction));
+                updateGL();
+            } else if (action == SectionScreen::PreferenceBackAction) {
+                m_sectionScreen.setPreferencePage(
+                    SectionScreen::NoPreferencePage);
+                updateGL();
+            } else if (action == SectionScreen::ClearCacheAction)
                 clearAppCache();
             else if (action == SectionScreen::AboutAction) {
                 m_sectionScreen.setAboutVisible(true);
@@ -4206,8 +4239,7 @@ void WiliwiliWidget::mouseReleaseEvent(QMouseEvent *event)
             } else if (action == SectionScreen::AboutBackAction) {
                 m_sectionScreen.setAboutVisible(false);
                 updateGL();
-            }
-            else if (action == SectionScreen::RefreshAction) {
+            } else if (action == SectionScreen::RefreshAction) {
                 if (m_navigation.selected() == NavigationRail::DynamicSection)
                     requestDynamicFeed(false);
                 else if (m_navigation.selected() ==
@@ -4215,8 +4247,7 @@ void WiliwiliWidget::mouseReleaseEvent(QMouseEvent *event)
                     requestMessages(m_messageType, false);
             } else if (action == SectionScreen::LoadMoreAction) {
                 loadMoreSection();
-            }
-            else if (action == SectionScreen::ReplyTabAction)
+            } else if (action == SectionScreen::ReplyTabAction)
                 requestMessages(0);
             else if (action == SectionScreen::AtTabAction)
                 requestMessages(1);
@@ -4254,6 +4285,12 @@ void WiliwiliWidget::keyPressEvent(QKeyEvent *event)
             updateGL();
         } else if (m_currentScreen == ContentScreenView) {
             navigateBack();
+            updateGL();
+        } else if (m_navigation.selected() ==
+                       NavigationRail::SettingsSection &&
+                   m_sectionScreen.preferencePageVisible()) {
+            m_sectionScreen.setPreferencePage(
+                SectionScreen::NoPreferencePage);
             updateGL();
         } else if (m_navigation.selected() ==
                        NavigationRail::SettingsSection &&

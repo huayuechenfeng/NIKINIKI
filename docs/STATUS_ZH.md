@@ -2,7 +2,7 @@
 
 > 状态：Active
 > 适用版本：1.0.0 与 1.1 当前主线
-> 最近事实核验：2026-08-30
+> 最近事实核验：2026-08-31
 > 本页职责：描述当前实现和验证边界，不记录实验过程或发布校验值
 
 ## 发布基线
@@ -60,6 +60,9 @@ preflight 获取失败            → 保守回到 MMF，并保留失败日志
 - Broadcom decoder 在相同输入契约下接受工作流 header，却稳定拒绝 7-ref/DPB7/weighted 风险流；
 - 系统 ARM decoder 虽接受风险 header，但返回 0×0 且 Configure 为 `KErrNotSupported`，不能作为产品后端；
 - 本机 FFmpeg 已让原有声无画视频出画面；CPU RGB565 LUT2X2 的历史基线约为 11.4–12.0 fps；
+- Nokia 603 已确认共享 `RFile` 的增长文件 `OpenFileL` 可以边下边播，不再出现初版
+  `KErrInUse (-14)`；全程软解也不再因 controller 拒绝 `SetVideoEnabledL(false)` 而提前显示
+  `SWERR`；
 - GLES 三平面 YUV 路线真机成本过高，已经退出普通播放；
 - Debug 和 Release 普通构建均已通过，1.0 Release 为 `sbs errors: 0`，32 条为既有 SDK/GCCE 警告。
 
@@ -74,6 +77,8 @@ preflight 获取失败            → 保守回到 MMF，并保留失败日志
 - 原版 Symbian³、Anna 的统一 SIS 安装、TLS、登录和媒体回归；
 - N8/X7/C7 Belle 上分别验证 `OpenUrlL`、增长文件 `OpenFileL` 和完整下载
   `OpenFileL`，以区分 streaming controller 与显示窗口链路；
+- 增长文件 `OpenFileL` 的 8 MiB 起播预缓冲是否消除 Nokia 603 的开头卡顿，以及完整下载模式的
+  文件大小、下载百分比和进度条在真机上的显示与刷新效果；
 - 当前主线“内置字体子集先出首帧、完整 CJK 字体分块加载”的冷启动修复已通过 `Symbian3Qt474` Debug/Release GCCE 编译，仍需在重装并重启手机后的真实冷缓存条件下验证；
 - 更多机型、H.264 profile/level、分辨率、码率和 CDN 组合的兼容矩阵；
 - 内置软件解码失败或性能不足时的明确外部播放器交接；

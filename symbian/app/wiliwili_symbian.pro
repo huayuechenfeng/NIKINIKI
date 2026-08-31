@@ -152,7 +152,7 @@ symbian {
         ":\"NIKINIKI\""
     nikiniki_deployment.pkg_prerules = vendorinfo
     DEPLOYMENT += nikiniki_deployment
-    LIBS += -lhttp -linetprotutil -lbafl -llibz \
+    LIBS += -lhttp -linetprotutil -lbafl -lefsrv -llibz \
             -lcone -leikcore -leikcoctl -lavkon -lws32 -lapgrfx \
             -lmediaclientvideo \
             -lmediaclientvideodisplay -ldevvideo

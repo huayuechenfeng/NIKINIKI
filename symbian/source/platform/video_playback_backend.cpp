@@ -16,6 +16,7 @@
 #ifdef Q_OS_SYMBIAN
 #include <coecntrl.h>
 #include <eikenv.h>
+#include <f32file.h>
 #include <mmf/common/mmfbase.h>
 #include <mmf/common/mmferrors.h>
 #include <mmf/common/mmfvideo.h>
@@ -605,7 +606,8 @@ public:
           devVideoCodedWidth(0), devVideoCodedHeight(0),
           devVideoYuv420Output(false)
 #ifdef Q_OS_SYMBIAN
-          , player(0), displayWindow(0), displayAdded(false),
+          , sharedFileSessionConnected(false), sharedMediaFileOpen(false),
+          player(0), displayWindow(0), displayAdded(false),
           geometryApplied(false), rotationApplied(false),
           scaleApplied(false),
 #ifdef WILIWILI_ENABLE_FFMPEG_SOFT_DECODER
@@ -726,6 +728,39 @@ public:
         return true;
     }
 
+    void closeSharedMediaFile()
+    {
+        if (sharedMediaFileOpen) {
+            sharedMediaFile.Close();
+            sharedMediaFileOpen = false;
+        }
+        if (sharedFileSessionConnected) {
+            sharedFileSession.Close();
+            sharedFileSessionConnected = false;
+        }
+    }
+
+    TInt openSharedMediaFile(const TDesC &path)
+    {
+        closeSharedMediaFile();
+        TInt error = sharedFileSession.Connect();
+        if (error != KErrNone)
+            return error;
+        sharedFileSessionConnected = true;
+        error = sharedFileSession.ShareProtected();
+        if (error == KErrNone) {
+            error = sharedMediaFile.Open(
+                sharedFileSession, path,
+                EFileRead | EFileShareReadersOrWriters);
+        }
+        if (error != KErrNone) {
+            closeSharedMediaFile();
+            return error;
+        }
+        sharedMediaFileOpen = true;
+        return KErrNone;
+    }
+
     bool addDisplayWindow()
     {
         if (displayAdded)
@@ -771,6 +806,7 @@ public:
                 player->RemoveDisplayWindow(*displayWindow);
             player->Close();
         }
+        closeSharedMediaFile();
         displayAdded = false;
         geometryApplied = false;
         rotationApplied = false;
@@ -1664,6 +1700,10 @@ public:
     bool devVideoYuv420Output;
 
 #ifdef Q_OS_SYMBIAN
+    RFs sharedFileSession;
+    RFile sharedMediaFile;
+    bool sharedFileSessionConnected;
+    bool sharedMediaFileOpen;
     CVideoPlayerUtility2 *player;
     RWindow *displayWindow;
     bool displayAdded;
@@ -1739,7 +1779,13 @@ void VideoPlaybackBackend::setMedia(const QMediaContent &media)
     TInt openError = KErrNone;
     if (localFile) {
         qDebug() << "WW:NATIVE_MMF_STAGE" << 50 << "open-file-before";
-        TRAP(openError, m_impl->player->OpenFileL(descriptor));
+        openError = m_impl->openSharedMediaFile(descriptor);
+        qDebug() << "WW:NATIVE_MMF_FILE_HANDLE"
+                 << "share-read-write" << openError;
+        if (openError == KErrNone) {
+            TRAP(openError,
+                 m_impl->player->OpenFileL(m_impl->sharedMediaFile));
+        }
     } else {
         qDebug() << "WW:NATIVE_MMF_STAGE" << 50 << "open-url-before";
         TRAP(openError,

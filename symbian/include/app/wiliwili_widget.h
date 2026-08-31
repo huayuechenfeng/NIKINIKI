@@ -95,8 +95,8 @@ private:
     void requestMessages(int type = 0, bool append = false);
     void requestNetworkDiagnostic();
     void toggleContentImages();
-    void cyclePlaybackMode();
-    void cycleDecoderMode();
+    void setPlaybackMode(int mode);
+    void setDecoderMode(int mode);
     void promptSearch();
     void submitSearch(const QString &input, bool pushHistory = true);
     void hideSearchEditor();

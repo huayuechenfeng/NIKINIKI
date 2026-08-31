@@ -38,7 +38,8 @@ SectionScreen::SectionScreen()
       m_scroll(0.0f), m_minScroll(0.0f), m_pullDistance(0.0f),
       m_lastWidth(360.0f), m_lastHeight(640.0f), m_itemTop(76.0f),
       m_messageTab(0), m_imageLoadingEnabled(true),
-      m_playbackMode(0), m_decoderMode(0), m_aboutVisible(false)
+      m_playbackMode(0), m_decoderMode(0),
+      m_preferencePage(NoPreferencePage), m_aboutVisible(false)
 {
     m_status = QString::fromLatin1("READY");
 }
@@ -70,11 +71,29 @@ void SectionScreen::setPlaybackPreferences(
     m_decoderMode = qBound(0, decoderMode, 2);
 }
 
+void SectionScreen::setPreferencePage(PreferencePage page)
+{
+    if (m_preferencePage == page)
+        return;
+    m_preferencePage = page;
+    m_aboutVisible = false;
+    m_scroll = 0.0f;
+    m_pullDistance = 0.0f;
+    m_loadMoreArmed = false;
+}
+
+bool SectionScreen::preferencePageVisible() const
+{
+    return m_preferencePage != NoPreferencePage;
+}
+
 void SectionScreen::setAboutVisible(bool visible)
 {
     if (m_aboutVisible == visible)
         return;
     m_aboutVisible = visible;
+    if (visible)
+        m_preferencePage = NoPreferencePage;
     m_scroll = 0.0f;
     m_pullDistance = 0.0f;
     m_loadMoreArmed = false;
@@ -178,6 +197,7 @@ void SectionScreen::initialize(int fontId)
 void SectionScreen::setSection(NavigationRail::Section section)
 {
     m_section = section;
+    m_preferencePage = NoPreferencePage;
     m_scroll = 0.0f;
     m_pullDistance = 0.0f;
     m_loadMoreArmed = false;
@@ -332,6 +352,102 @@ void SectionScreen::drawAboutPage(
     y += 48.0f;
     drawText(context, QString::fromUtf8("谢谢喵"),
              centerX, y, 14.0f, nvgRGB(251, 150, 178),
+             NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+}
+
+void SectionScreen::drawPreferencePage(
+    NVGcontext *context, float left, float width, float height)
+{
+    m_minScroll = 0.0f;
+    m_scroll = 0.0f;
+    m_preferenceBackHitBox = QRectF(0.0f, 0.0f, 104.0f, 52.0f);
+    drawText(context, QString::fromUtf8("< 返回设置"),
+             12.0f, 26.0f, 13.0f, nvgRGB(251, 114, 153),
+             NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
+    const bool playback = m_preferencePage == PlaybackPreferencePage;
+    drawText(context,
+             playback ? QString::fromUtf8("选择播放方式")
+                      : QString::fromUtf8("选择解码方式"),
+             width * 0.5f, 26.0f, 17.0f,
+             nvgRGB(248, 248, 250), NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+    nvgBeginPath(context);
+    nvgRect(context, left + 12.0f, 52.0f, width - left - 24.0f, 1.0f);
+    nvgFillColor(context, nvgRGBA(255, 255, 255, 24));
+    nvgFill(context);
+
+    const QString playbackTitles[] = {
+        QString::fromUtf8("流式播放"),
+        QString::fromUtf8("OpenFileL 边下边播"),
+        QString::fromUtf8("下载后播放")
+    };
+    const QString playbackSubtitles[] = {
+        QString::fromUtf8("直接把网络地址交给 MMF OpenUrlL"),
+        QString::fromUtf8("预缓冲后打开持续增长的本地文件"),
+        QString::fromUtf8("完整下载并显示进度，完成后开始播放")
+    };
+    const QString decoderTitles[] = {
+        QString::fromUtf8("自动选择"),
+        QString::fromUtf8("全程硬解"),
+        QString::fromUtf8("全程软解")
+    };
+    const QString decoderSubtitles[] = {
+        QString::fromUtf8("兼容时硬解，否则回退本机软件视频"),
+        QString::fromUtf8("始终使用 MMF，无法解码时可能黑屏"),
+        QString::fromUtf8("点播 MP4 始终使用本机软件视频")
+    };
+    const int selected = playback ? m_playbackMode : m_decoderMode;
+    const float cardX = left + 14.0f;
+    const float cardWidth = width - left - 28.0f;
+    const float cardHeight = 92.0f;
+    const float cardGap = 14.0f;
+    float cardY = 78.0f;
+    int index;
+    for (index = 0; index < 3; ++index) {
+        m_preferenceOptionHitBoxes[index] =
+            QRectF(cardX, cardY, cardWidth, cardHeight);
+        nvgBeginPath(context);
+        nvgRoundedRect(context, cardX, cardY,
+                       cardWidth, cardHeight, 12.0f);
+        nvgFillColor(context, index == selected
+            ? nvgRGBA(251, 114, 153, 36)
+            : nvgRGBA(44, 44, 54, 246));
+        nvgFill(context);
+        nvgStrokeWidth(context, index == selected ? 1.5f : 1.0f);
+        nvgStrokeColor(context, index == selected
+            ? nvgRGBA(251, 114, 153, 210)
+            : nvgRGBA(255, 255, 255, 18));
+        nvgStroke(context);
+
+        nvgBeginPath(context);
+        nvgCircle(context, cardX + 22.0f, cardY + 46.0f, 8.0f);
+        nvgStrokeWidth(context, 1.5f);
+        nvgStrokeColor(context, index == selected
+            ? nvgRGB(251, 114, 153) : nvgRGB(132, 132, 146));
+        nvgStroke(context);
+        if (index == selected) {
+            nvgBeginPath(context);
+            nvgCircle(context, cardX + 22.0f, cardY + 46.0f, 4.0f);
+            nvgFillColor(context, nvgRGB(251, 114, 153));
+            nvgFill(context);
+        }
+        drawText(context,
+                 playback ? playbackTitles[index] : decoderTitles[index],
+                 cardX + 42.0f, cardY + 31.0f, 13.5f,
+                 nvgRGB(244, 244, 247),
+                 NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
+        drawText(context,
+                 playback ? playbackSubtitles[index]
+                          : decoderSubtitles[index],
+                 cardX + 42.0f, cardY + 59.0f, 9.5f,
+                 nvgRGB(164, 164, 177),
+                 NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
+        cardY += cardHeight + cardGap;
+    }
+    drawText(context,
+             QString::fromUtf8("选择后立即保存，下次播放生效"),
+             width * 0.5f,
+             qMin(height - NavigationRail::height() - 20.0f, cardY + 14.0f),
+             10.0f, nvgRGB(148, 148, 162),
              NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
 }
 
@@ -526,6 +642,10 @@ void SectionScreen::draw(NVGcontext *context, float width, float height)
 
     if (m_aboutVisible) {
         drawAboutPage(context, left, width);
+        return;
+    }
+    if (m_preferencePage != NoPreferencePage) {
+        drawPreferencePage(context, left, width, height);
         return;
     }
 
@@ -738,9 +858,9 @@ void SectionScreen::draw(NVGcontext *context, float width, float height)
             QString::fromLatin1("PLAYBACK / DOWNLOAD")
         };
         const QString playbackSubtitles[] = {
-            QString::fromUtf8("流式播放：MMF OpenUrlL（默认）"),
-            QString::fromUtf8("边下边播：缓存增长时 MMF OpenFileL"),
-            QString::fromUtf8("完整下载后使用 MMF OpenFileL")
+            QString::fromUtf8("当前：流式播放（OpenUrlL）· 点击选择"),
+            QString::fromUtf8("当前：OpenFileL 边下边播 · 点击选择"),
+            QString::fromUtf8("当前：完整下载后播放 · 点击选择")
         };
         drawInfoCard(context, cardX, cardY, cardWidth,
                      playbackTitles[m_playbackMode],
@@ -754,9 +874,9 @@ void SectionScreen::draw(NVGcontext *context, float width, float height)
             QString::fromLatin1("DECODER / SOFTWARE")
         };
         const QString decoderSubtitles[] = {
-            QString::fromUtf8("自动选择：兼容时硬解，否则本机软解"),
-            QString::fromUtf8("全程硬解：不兼容视频可能黑屏"),
-            QString::fromUtf8("全程软解：仅点播 MP4，速度较慢")
+            QString::fromUtf8("当前：自动选择 · 点击选择"),
+            QString::fromUtf8("当前：全程硬解 · 点击选择"),
+            QString::fromUtf8("当前：全程软解 · 点击选择")
         };
         drawInfoCard(context, cardX, cardY, cardWidth,
                      decoderTitles[m_decoderMode],
@@ -825,6 +945,10 @@ void SectionScreen::pointerMove(const QPoint &position)
 {
     if (!m_dragging)
         return;
+    if (m_aboutVisible || m_preferencePage != NoPreferencePage) {
+        m_lastPosition = position;
+        return;
+    }
     const float delta = static_cast<float>(
         position.y() - m_lastPosition.y());
     if (m_scroll >= 0.0f && (m_pullDistance > 0.0f || delta > 0.0f)) {
@@ -871,6 +995,25 @@ SectionScreen::Action SectionScreen::pointerRelease(
         return NoAction;
     }
     if (m_section == NavigationRail::SettingsSection &&
+        m_preferencePage != NoPreferencePage) {
+        if (m_preferenceBackHitBox.contains(QPointF(position)))
+            return PreferenceBackAction;
+        int index;
+        for (index = 0; index < 3; ++index) {
+            if (!m_preferenceOptionHitBoxes[index].contains(
+                    QPointF(position))) {
+                continue;
+            }
+            if (m_preferencePage == PlaybackPreferencePage) {
+                return static_cast<Action>(
+                    SelectUrlStreamingAction + index);
+            }
+            return static_cast<Action>(
+                SelectAutomaticDecoderAction + index);
+        }
+        return NoAction;
+    }
+    if (m_section == NavigationRail::SettingsSection &&
         m_exitHitBox.contains(QPointF(position)))
         return ExitApplicationAction;
     if (m_section == NavigationRail::SettingsSection &&
@@ -881,10 +1024,10 @@ SectionScreen::Action SectionScreen::pointerRelease(
         return ToggleImagesAction;
     if (m_section == NavigationRail::SettingsSection &&
         m_playbackModeHitBox.contains(QPointF(position)))
-        return CyclePlaybackModeAction;
+        return OpenPlaybackModeAction;
     if (m_section == NavigationRail::SettingsSection &&
         m_decoderModeHitBox.contains(QPointF(position)))
-        return CycleDecoderModeAction;
+        return OpenDecoderModeAction;
     if (m_section == NavigationRail::SettingsSection &&
         m_cacheHitBox.contains(QPointF(position)))
         return ClearCacheAction;

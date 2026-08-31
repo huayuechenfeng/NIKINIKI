@@ -33,9 +33,111 @@
 #include <eikenv.h>
 #include <aknappui.h>
 #include <apgtask.h>
+#include <f32file.h>
 #endif
 
 namespace wiliwili {
+
+// A growing local media file must opt into Symbian read/write sharing before
+// MMF opens a second handle. QFile's default native share mode makes
+// CVideoPlayerUtility2::OpenFileL() fail with KErrInUse (-14) while the
+// download is still active.
+class LocalDownloadWriter
+{
+public:
+    LocalDownloadWriter()
+#ifdef Q_OS_SYMBIAN
+        : m_sessionConnected(false), m_open(false)
+#endif
+    {
+    }
+
+    ~LocalDownloadWriter()
+    {
+        close();
+    }
+
+    bool open(const QString &path)
+    {
+#ifdef Q_OS_SYMBIAN
+        close();
+        TInt error = m_fileSession.Connect();
+        if (error != KErrNone)
+            return false;
+        m_sessionConnected = true;
+        error = m_fileSession.ShareProtected();
+        if (error != KErrNone) {
+            close();
+            return false;
+        }
+        const QString nativePath = QDir::toNativeSeparators(path);
+        const TPtrC descriptor(
+            reinterpret_cast<const TUint16 *>(nativePath.utf16()),
+            nativePath.length());
+        error = m_file.Replace(
+            m_fileSession, descriptor,
+            EFileWrite | EFileShareReadersOrWriters);
+        if (error != KErrNone) {
+            close();
+            return false;
+        }
+        m_open = true;
+        return true;
+#else
+        m_file.setFileName(path);
+        return m_file.open(QIODevice::WriteOnly);
+#endif
+    }
+
+    qint64 write(const QByteArray &data)
+    {
+#ifdef Q_OS_SYMBIAN
+        if (!m_open)
+            return -1;
+        const TPtrC8 bytes(
+            reinterpret_cast<const TUint8 *>(data.constData()),
+            data.size());
+        return m_file.Write(bytes) == KErrNone ? data.size() : -1;
+#else
+        return m_file.write(data);
+#endif
+    }
+
+    bool flush()
+    {
+#ifdef Q_OS_SYMBIAN
+        return m_open && m_file.Flush() == KErrNone;
+#else
+        return m_file.flush();
+#endif
+    }
+
+    void close()
+    {
+#ifdef Q_OS_SYMBIAN
+        if (m_open) {
+            m_file.Close();
+            m_open = false;
+        }
+        if (m_sessionConnected) {
+            m_fileSession.Close();
+            m_sessionConnected = false;
+        }
+#else
+        m_file.close();
+#endif
+    }
+
+private:
+#ifdef Q_OS_SYMBIAN
+    RFs m_fileSession;
+    RFile m_file;
+    bool m_sessionConnected;
+    bool m_open;
+#else
+    QFile m_file;
+#endif
+};
 
 static VideoOverlayWidget *g_persistentVideoOverlay = 0;
 
@@ -47,7 +149,10 @@ static const int KAvcProbeTotalPollLimit = 120;  // 60 seconds at 500 ms.
 static const int KOverlayFrameIntervalMilliseconds = 40; // 25 fps ceiling.
 static const int KSoftOverlayFrameIntervalMilliseconds = 33; // ~30 fps.
 static const int KSoftPositionRefreshMilliseconds = 500;
-static const qint64 KOpenFileStreamingStartBytes = 2LL * 1024LL * 1024LL;
+// Nokia 603 can open the shared growing file at 2 MiB, but the decoder then
+// catches the network writer during the first seconds. Eight MiB remains a
+// small on-disk head start while avoiding that immediately visible stutter.
+static const qint64 KOpenFileStreamingStartBytes = 8LL * 1024LL * 1024LL;
 
 #ifdef Q_OS_SYMBIAN
 typedef TUint32 OverlayFastCounterValue;
@@ -1230,11 +1335,15 @@ private:
         painter->setRenderHint(QPainter::Antialiasing, true);
         painter->setRenderHint(QPainter::TextAntialiasing, true);
         painter->setRenderHint(QPainter::SmoothPixmapTransform, false);
-        const OverlayFastCounterValue danmakuStart =
-            overlayFastCounterNow();
-        drawDanmaku(painter);
-        addPaintStageMilliseconds(
-            &m_overlayDanmakuMilliseconds, danmakuStart);
+        if (downloadProgressVisible()) {
+            drawDownloadProgress(painter);
+        } else {
+            const OverlayFastCounterValue danmakuStart =
+                overlayFastCounterNow();
+            drawDanmaku(painter);
+            addPaintStageMilliseconds(
+                &m_overlayDanmakuMilliseconds, danmakuStart);
+        }
         if (m_controlsVisible) {
             const OverlayFastCounterValue controlsStart =
                 overlayFastCounterNow();
@@ -1408,6 +1517,113 @@ private:
             if (++rendered >= 18)
                 break;
         }
+    }
+
+    bool downloadProgressVisible() const
+    {
+        return m_owner && m_owner->m_sessionActive &&
+            !m_owner->m_isLive &&
+            m_owner->m_playbackMode ==
+                VideoPlayerWidget::DownloadThenPlayback &&
+            !m_owner->m_localPlaybackActive &&
+            !m_owner->m_policyRouteFailed;
+    }
+
+    QString downloadSizeText(qint64 bytes) const
+    {
+        if (bytes <= 0)
+            return QString::fromLatin1("0 MiB");
+        const qreal mib = bytes / static_cast<qreal>(1024 * 1024);
+        return QString::fromLatin1("%1 MiB").arg(
+            QString::number(mib, 'f', mib < 10.0 ? 1 : 0));
+    }
+
+    void drawDownloadProgress(QPainter *painter)
+    {
+        const qint64 downloaded = qMax<qint64>(
+            0, m_owner->m_downloadBytes);
+        const qint64 total = qMax<qint64>(
+            0, m_owner->m_downloadTotalBytes);
+        const int percentage = total > 0
+            ? qBound(0, static_cast<int>(
+                downloaded * 100 / total), 100)
+            : 0;
+
+        painter->fillRect(rect(), QColor(12, 12, 18, 232));
+        const int panelWidth = qMax(260, qMin(440, canvasWidth() - 48));
+        const int panelHeight = 154;
+        const QRect panel(
+            (canvasWidth() - panelWidth) / 2,
+            (canvasHeight() - panelHeight) / 2,
+            panelWidth, panelHeight);
+        painter->setPen(QPen(QColor(251, 114, 153, 190), 1));
+        painter->setBrush(QColor(35, 35, 45, 248));
+        painter->drawRoundedRect(panel, 13, 13);
+
+        QFont titleFont = QApplication::font();
+        titleFont.setPixelSize(17);
+        titleFont.setBold(true);
+        painter->setFont(titleFont);
+        painter->setPen(QColor(248, 248, 250));
+        painter->drawText(
+            QRect(panel.left() + 18, panel.top() + 15,
+                  panel.width() - 36, 27),
+            Qt::AlignCenter,
+            m_owner->m_downloadReply
+                ? QString::fromUtf8("正在下载视频")
+                : QString::fromUtf8("正在准备视频下载"));
+
+        QFont detailFont = QApplication::font();
+        detailFont.setPixelSize(11);
+        painter->setFont(detailFont);
+        painter->setPen(QColor(188, 188, 201));
+        const QString detail = total > 0
+            ? QString::fromUtf8("已下载 %1 / 文件大小 %2")
+                .arg(downloadSizeText(downloaded))
+                .arg(downloadSizeText(total))
+            : QString::fromUtf8("已下载 %1 / 正在获取文件大小…")
+                .arg(downloadSizeText(downloaded));
+        painter->drawText(
+            QRect(panel.left() + 18, panel.top() + 47,
+                  panel.width() - 36, 22),
+            Qt::AlignCenter, detail);
+
+        const QRect progressBar(
+            panel.left() + 24, panel.top() + 82,
+            panel.width() - 48, 10);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(QColor(82, 82, 95));
+        painter->drawRoundedRect(progressBar, 5, 5);
+        if (total > 0 && percentage > 0) {
+            QRect completed = progressBar;
+            completed.setWidth(qMax(
+                5, progressBar.width() * percentage / 100));
+            painter->setBrush(QColor(251, 114, 153));
+            painter->drawRoundedRect(completed, 5, 5);
+        }
+
+        QFont statusFont = QApplication::font();
+        statusFont.setPixelSize(12);
+        statusFont.setBold(total > 0);
+        painter->setFont(statusFont);
+        painter->setPen(total > 0
+            ? QColor(251, 150, 178) : QColor(166, 166, 180));
+        painter->drawText(
+            QRect(panel.left() + 18, panel.top() + 102,
+                  panel.width() - 36, 21),
+            Qt::AlignCenter,
+            total > 0
+                ? QString::fromLatin1("%1%").arg(percentage)
+                : QString::fromUtf8("连接中"));
+        painter->setPen(QColor(145, 145, 158));
+        statusFont.setBold(false);
+        statusFont.setPixelSize(10);
+        painter->setFont(statusFont);
+        painter->drawText(
+            QRect(panel.left() + 18, panel.top() + 128,
+                  panel.width() - 36, 17),
+            Qt::AlignCenter,
+            QString::fromUtf8("下载完成后将自动开始播放"));
     }
 
     void drawControls(QPainter *painter)
@@ -1647,6 +1863,7 @@ VideoPlayerWidget::VideoPlayerWidget(
       m_screenAwakeTimerId(0),
       m_pendingSourceIndex(-1), m_sourcePass(0),
       m_downloadSourceIndex(-1), m_downloadBytes(0),
+      m_downloadTotalBytes(0),
       m_automaticFallbackTarget(0),
       m_playbackMode(UrlStreamingPlayback),
       m_decoderMode(AutomaticDecoder),
@@ -1925,6 +2142,7 @@ void VideoPlayerWidget::openSource(
     m_sourcePass = 0;
     m_downloadSourceIndex = -1;
     m_downloadBytes = 0;
+    m_downloadTotalBytes = 0;
     m_localFallbackAttempted = false;
     m_localPlaybackActive = false;
     m_openLocalWhileDownloading = false;
@@ -2585,14 +2803,15 @@ void VideoPlayerWidget::startLocalDownloadFallback(
     m_localFallbackAttempted = true;
     m_downloadSourceIndex = sourceIndex;
     m_downloadBytes = 0;
+    m_downloadTotalBytes = 0;
     if (m_downloadPath.isEmpty()) {
         QDir().mkpath(QDir::tempPath());
         m_downloadPath = QDir::tempPath() +
             QString::fromLatin1("/wiliwili_player_cache.mp4");
     }
     QFile::remove(m_downloadPath);
-    m_downloadFile = new QFile(m_downloadPath);
-    if (!m_downloadFile->open(QIODevice::WriteOnly)) {
+    m_downloadFile = new LocalDownloadWriter;
+    if (!m_downloadFile->open(m_downloadPath)) {
         qDebug() << "WW:PLAYER_LOCAL_OPEN_FAILED" << m_downloadPath;
         delete m_downloadFile;
         m_downloadFile = 0;
@@ -2658,6 +2877,15 @@ void VideoPlayerWidget::pollLocalDownloadFallback()
             return;
         }
         m_downloadBytes += written;
+        if (m_localPlaybackActive && !m_downloadFile->flush()) {
+            qDebug() << "WW:PLAYER_LOCAL_FLUSH_FAILED"
+                     << m_downloadBytes;
+            cancelLocalDownloadFallback(true);
+            m_policyRouteFailed = true;
+            if (m_overlay)
+                m_overlay->update();
+            return;
+        }
     }
 
     const qint64 maximumBytes = 96LL * 1024LL * 1024LL;
@@ -2665,6 +2893,8 @@ void VideoPlayerWidget::pollLocalDownloadFallback()
         QNetworkRequest::ContentLengthHeader);
     const qint64 declaredBytes = lengthHeader.isValid()
         ? lengthHeader.toLongLong() : 0;
+    if (declaredBytes > 0)
+        m_downloadTotalBytes = declaredBytes;
     if (declaredBytes > maximumBytes ||
         m_downloadBytes > maximumBytes) {
         qDebug() << "WW:PLAYER_LOCAL_TOO_LARGE"
@@ -2973,16 +3203,12 @@ void VideoPlayerWidget::handOffAvcHardwareProbe(
     }
     if (resetDecoder && m_softwareVideoRouteSelected &&
         !m_player->isNativeVideoPolicyApplied()) {
-        qDebug() << "WW:PLAYER_SOFTWARE_MMF_VIDEO_DISABLE_FAILED"
+        // Some Belle MMF controllers reject SetVideoEnabledL(false) even
+        // though the independent FFmpeg video surface can run normally. The
+        // opaque software surface hides the MMF window, so this controller
+        // optimization must not become a software-decoder admission gate.
+        qDebug() << "WW:PLAYER_SOFTWARE_MMF_VIDEO_DISABLE_BEST_EFFORT"
                  << "decoder" << m_decoderMode;
-        if (m_decoderMode == SoftwareOnlyDecoder) {
-            m_policyRouteFailed = true;
-            m_avcProbeStage = 4;
-            m_player->stop();
-            if (m_overlay)
-                m_overlay->update();
-            return;
-        }
     }
 
     // The measured three-plane GLES path is not viable on the Nokia 603:
@@ -3438,9 +3664,15 @@ QString VideoPlayerWidget::playbackStatus() const
         return m_decoderMode == SoftwareOnlyDecoder
             ? QString::fromLatin1("SWERR")
             : QString::fromLatin1("DLERR");
-    if (m_downloadReply)
+    if (m_downloadReply) {
+        if (m_downloadTotalBytes > 0) {
+            return QString::fromLatin1("DL%1%")
+                .arg(qBound(0, static_cast<int>(
+                    m_downloadBytes * 100 / m_downloadTotalBytes), 100));
+        }
         return QString::fromLatin1("DL%1M")
             .arg(m_downloadBytes / (1024 * 1024));
+    }
     if (!m_player)
         return QString::fromLatin1("ROTATE");
     if (m_player->error() != VideoPlaybackBackend::NoError)
