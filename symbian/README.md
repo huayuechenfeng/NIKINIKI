@@ -6,14 +6,15 @@ historical names remain unchanged for compatibility and traceability.
 
 ## Current status
 
-- The current development mainline is version 1.1.0; 1.0.0 remains the latest
-  formally signed and published release until 1.1 device validation completes.
-- Version 1.0.0 is the formal release: compatible AVC
+- Version 1.1.0 is the current formally signed and published release. It fixes
+  the first-install font-loading stall and adds explicit transport and decoder
+  policy selectors, including shared-file progressive `OpenFileL` playback.
+- Compatible AVC
   keeps the native MMF route; the known weighted/7-reference AVC template
   uses the on-phone PPSSPP-FFmpeg H.264 fallback with the existing CPU
   YUV420P→RGB565 renderer. The earlier GLES YUV420 renderer is retained only
   as historical research code and is no longer requested by normal playback.
-  See `../docs/releases/RELEASE_1.0.0_ZH.md` for the release package and
+  See `../docs/releases/RELEASE_1.1.0_ZH.md` for the release package and
   `../docs/README_ZH.md` for the documentation entry points.
 - The application source is self-contained under `symbian/`, and this NIKINIKI
   repository is the only product source of truth. The pinned wiliwili `yoga`
@@ -127,8 +128,11 @@ The USB connection currently exposes MTP/WPD only, so USB serial CODA is not con
 
 Qt 4.7's Symbian qmake generator does not resolve this multi-directory project
 correctly as a shadow build. `Build-App.ps1` therefore builds in
-`symbian/app` and copies the signed SIS to
-`symbian/out/wiliwili-symbian-debug/`.
+`symbian/app` and copies the SDK-signed SIS to the ignored configuration
+directory with a public-facing name such as
+`symbian/out/wiliwili-symbian-release/NIKINIKI_1.1.0_release.sis`. The internal
+target remains `wiliwili_symbian` only for upgrade compatibility and source
+traceability; it is not a public installation asset name.
 
 Since 0.9, the project file enables the local `ffmpegsoft2` H.264 fallback for
 ordinary builds and uses the CPU RGB565 output path for normal soft playback.
@@ -137,7 +141,7 @@ automatically. Do not add the diagnosis-only
 `CONFIG+=ffmpeglatedrop1` when producing a user package. The SDK's automatic SIS
 step uses its legacy self-signed certificate; for a distributable package,
 replace that signature with the current certificate as described in
-`docs/releases/RELEASE_1.0.0_ZH.md`.
+`docs/releases/RELEASE_1.1.0_ZH.md`.
 
 ## SDK constraints
 

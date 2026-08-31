@@ -1,18 +1,16 @@
 # NIKINIKI 当前状态
 
 > 状态：Active
-> 适用版本：1.0.0 与 1.1 当前主线
+> 适用版本：1.1.0
 > 最近事实核验：2026-08-31
 > 本页职责：描述当前实现和验证边界，不记录实验过程或发布校验值
 
 ## 发布基线
 
-NIKINIKI 1.0.0 已完成 `Symbian3Qt474` GCCE Release 编译、打包、有效签名和公开发布。
+NIKINIKI 1.1.0 已完成 `Symbian3Qt474` GCCE Release 编译、打包、有效签名、Nokia 603
+真机验收和公开发布。
 正式安装包、大小、SHA-256、证书和 LGPL 重链接材料只在
-[1.0.0 发布说明](releases/RELEASE_1.0.0_ZH.md)维护。
-
-当前开发主线版本为 1.1.0；它包含首次启动字体异步化与播放器策略设置，但仍是待真机回归、
-待正式签名和发布的开发版本，不能表述成已经发布的 1.1。
+[1.1.0 发布说明](releases/RELEASE_1.1.0_ZH.md)维护。
 
 当前统一包：
 
@@ -63,6 +61,8 @@ preflight 获取失败            → 保守回到 MMF，并保留失败日志
 - Nokia 603 已确认共享 `RFile` 的增长文件 `OpenFileL` 可以边下边播，不再出现初版
   `KErrInUse (-14)`；全程软解也不再因 controller 拒绝 `SetVideoEnabledL(false)` 而提前显示
   `SWERR`；
+- Nokia 603 已确认 8 MiB 起播预缓冲、完整下载进度 UI、播放/解码独立列表与首次启动字体
+  非阻塞方案的 1.1 最终包实际运行正常；
 - GLES 三平面 YUV 路线真机成本过高，已经退出普通播放；
 - Debug 和 Release 普通构建均已通过，1.0 Release 为 `sbs errors: 0`，32 条为既有 SDK/GCCE 警告。
 
@@ -77,9 +77,6 @@ preflight 获取失败            → 保守回到 MMF，并保留失败日志
 - 原版 Symbian³、Anna 的统一 SIS 安装、TLS、登录和媒体回归；
 - N8/X7/C7 Belle 上分别验证 `OpenUrlL`、增长文件 `OpenFileL` 和完整下载
   `OpenFileL`，以区分 streaming controller 与显示窗口链路；
-- 增长文件 `OpenFileL` 的 8 MiB 起播预缓冲是否消除 Nokia 603 的开头卡顿，以及完整下载模式的
-  文件大小、下载百分比和进度条在真机上的显示与刷新效果；
-- 当前主线“内置字体子集先出首帧、完整 CJK 字体分块加载”的冷启动修复已通过 `Symbian3Qt474` Debug/Release GCCE 编译，仍需在重装并重启手机后的真实冷缓存条件下验证；
 - 更多机型、H.264 profile/level、分辨率、码率和 CDN 组合的兼容矩阵；
 - 内置软件解码失败或性能不足时的明确外部播放器交接；
 - 直播链路和直播弹幕的稳定实现；
@@ -94,13 +91,14 @@ preflight 获取失败            → 保守回到 MMF，并保留失败日志
 - 直播不属于 1.0 稳定性承诺；
 - 外部播放器回退尚未形成正式产品闭环；
 - Bilibili API、登录和媒体 URL 会受服务端变化影响；
-- 已发布的 1.0.0 首次启动仍可能因同步读取完整字体而长时间黑屏，处理方式见[故障排查](user/TROUBLESHOOTING_ZH.md)；当前主线修复尚未取得真机结论。
+- 1.1.0 已修复首次启动同步加载完整字体导致的长时间黑屏；回退到 1.0.0 时仍需参考
+  [故障排查](user/TROUBLESHOOTING_ZH.md)中的旧版处理方法。
 
 ## 当前事实的维护位置
 
 | 事实 | 维护位置 |
 |---|---|
-| 安装包和签名 | `docs/releases/RELEASE_1.0.0_ZH.md` |
+| 安装包和签名 | `docs/releases/RELEASE_1.1.0_ZH.md` |
 | 真机通过/失败 | `docs/reference/DEVICE_TEST_MATRIX.md` |
 | 工具链版本 | `docs/reference/TOOLCHAIN_REPORT.md` |
 | 当前播放结构 | `docs/developer/PLAYBACK_ARCHITECTURE_ZH.md` |

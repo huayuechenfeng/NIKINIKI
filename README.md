@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <strong>1.0.0 · 首个公开版本</strong>
+  <strong>1.1.0 · 播放策略与首次启动体验更新</strong>
 </p>
 
 > NIKINIKI 曾用名为 **wiliwili for Symbian³** / `wiliwili_symbian`。项目源自对
@@ -25,20 +25,22 @@
 本项目的开发过程中使用了 **vibecoding（AI 辅助编程）**。设计取舍、实机验证、
 构建与发布均由维护者确认。
 
-## 下载 1.0
+## 下载 1.1
 
-- [NIKINIKI 1.0.0 GitHub Release](https://github.com/huayuechenfeng/NIKINIKI/releases/tag/v1.0.0)
-- [直接下载正式 SIS](https://github.com/huayuechenfeng/NIKINIKI/releases/download/v1.0.0/NIKINIKI_1.0.0_release.sis)
-- [LGPL 重链接材料](https://github.com/huayuechenfeng/NIKINIKI/releases/download/v1.0.0/NIKINIKI_1.0.0_relink_materials.zip)
+- [NIKINIKI 1.1.0 GitHub Release](https://github.com/huayuechenfeng/NIKINIKI/releases/tag/v1.1.0)
+- [直接下载正式 SIS](https://github.com/huayuechenfeng/NIKINIKI/releases/download/v1.1.0/NIKINIKI_1.1.0_release.sis)
+- [LGPL 重链接材料](https://github.com/huayuechenfeng/NIKINIKI/releases/download/v1.1.0/NIKINIKI_1.1.0_relink_materials.zip)
 
 安装包大小、SHA-256、签名和重链接材料清单见
-[1.0.0 发布说明](docs/releases/RELEASE_1.0.0_ZH.md)。
+[1.1.0 发布说明](docs/releases/RELEASE_1.1.0_ZH.md)。若新版本安装或启动异常，请到 QQ 群
+`977410275` 反馈，并可先继续使用
+[1.0.0](https://github.com/huayuechenfeng/NIKINIKI/releases/tag/v1.0.0)。
 
 ## 安装前置说明
 
 所有设备都建议安装 TLS 1.2 补丁；原版 Symbian³ 和 Anna 还需要 Qt 4.7.4 与
 Qt Mobility 1.2.x。完整顺序和运行库下载见[安装指南](docs/user/INSTALL_ZH.md)。
-首次启动黑屏、TLS 或播放问题见[故障排查](docs/user/TROUBLESHOOTING_ZH.md)。
+首次启动、TLS 或播放问题见[故障排查](docs/user/TROUBLESHOOTING_ZH.md)。
 
 ## 开源与赞助
 
@@ -46,12 +48,21 @@ Qt Mobility 1.2.x。完整顺序和运行库下载见[安装指南](docs/user/IN
 软件的正常使用、功能获取或源码开放：
 [爱发电支持 NIKINIKI](https://afdian.com/a/nankoku)。
 
-## 1.0 是什么
+## 1.1 更新重点
+
+1.1 修复了首次安装后同步加载完整字体造成的长时间黑屏，并在设置页新增三种播放方式和
+三种解码方式。下载后播放现在会显示文件大小、已下载量、百分比和进度条；
+`OpenFileL` 边下边播也修复了文件共享冲突并增加到 8 MiB 起播预缓冲。
+
+N8 / E7 / X7 / C7 建议升级到 Nokia Belle，并在“设置 → 播放方式”中选择
+“`OpenFileL` 边下边播”，以避开部分旧机型 MMF 网络流式 controller 只有声音没有画面的情况。
+
+## NIKINIKI 是什么
 
 NIKINIKI 的目标很简单：让已经停止官方生态更新的 Symbian 手机，仍能直接访问和
 播放现代哔哩哔哩内容。
 
-1.0 已在 **Nokia 603 / Nokia Belle（640×360）** 上作为主要开发与回归基线，核心
+NIKINIKI 已在 **Nokia 603 / Nokia Belle（640×360）** 上作为主要开发与回归基线，核心
 浏览、登录、视频、弹幕和播放器流程已经跑通。项目不依赖 PC 桥接、远程封装或远程
 转码；兼容处理尽量在手机本机完成。
 
@@ -80,6 +91,8 @@ Bilibili progressive MP4
 - 播放/暂停、进度拖动、倍速、音量、清晰度和触摸控制；
 - 滚动弹幕及播放器透明控制层；
 - 原生横屏播放器状态机，可从播放页正常返回并重复进入；
+- 播放方式可选网络流式、`OpenFileL` 边下边播和下载后播放；
+- 解码方式可选自动选择、全程硬解和全程软解；
 - Qt 4.7.4 / GCCE 4.4.1 / Symbian³ SDK 的可复现构建脚本；
 - 单一 ARMv5 应用包设计，目标覆盖 Symbian³、Anna 和 Belle。
 
@@ -88,7 +101,7 @@ Bilibili progressive MP4
 | 系统 / 设备 | 当前状态 |
 |---|---|
 | **Nokia 603 / Belle** | 主要开发与真机验证基线 |
-| Nokia Belle 其他机型 | 预期可运行，欢迎反馈，尤其是 700 / 701 / 808 |
+| Nokia Belle 其他机型 | 预期可运行；N8 / E7 / X7 / C7 推荐 Belle + `OpenFileL` 边下边播，欢迎反馈 |
 | Symbian Anna | 使用同一应用 SIS；需要 Qt 4.7.4 + Qt Mobility 1.2.x，真机覆盖仍在收集 |
 | 原版 Symbian³ | 使用同一应用 SIS；需要离线 Qt / Mobility 运行库，真机覆盖仍在收集 |
 
@@ -108,13 +121,13 @@ Belle 设备通常已经具备所需运行环境。Anna / 原版 Symbian³ 若�
   而 **N8 一代稳定 20fps** 才是下一阶段需要针对性投入和验证的关键目标；
 - Nokia 603 上，能够进入系统硬件解码路径的视频目前基本可以稳定达到 **30fps**。N8 一代的
   硬件解码能力低于 603，但对于其硬解兼容范围内的视频，仍预计能够保持流畅播放；
-- 直播链路仍属实验性功能，不作为 1.0 的稳定性承诺；
+- 直播链路仍属实验性功能，不作为当前正式版的稳定性承诺；
 - 原版 Symbian³ / Anna 的离线 Qt/Mobility 运行库仍需要更多真机验证；
 - B 站接口、登录流程和媒体 URL 都可能随服务端变化。
 
-## 1.0 之后
+## 后续计划
 
-下一阶段优先建立 1.0 稳定性和软件视频性能基线，再处理外部播放器回退、更多系统覆盖和
+下一阶段优先建立正式版稳定性和软件视频性能基线，再处理外部播放器回退、更多系统覆盖和
 直播。当前优先级见[路线图](docs/ROADMAP_ZH.md)，当前技术结构见
 [开发文档](docs/README_ZH.md)；历史研究不代表默认实现。
 

@@ -13,6 +13,13 @@ $ErrorActionPreference = 'Stop'
 
 $sourceDirectory = Join-Path $PSScriptRoot 'app'
 $projectFile = Join-Path $sourceDirectory 'wiliwili_symbian.pro'
+$versionMatch = Select-String -LiteralPath $projectFile `
+    -Pattern '^\s*VERSION\s*=\s*(?<version>\d+\.\d+\.\d+)\s*$' |
+    Select-Object -First 1
+if (-not $versionMatch) {
+    throw "Unable to read VERSION from $projectFile"
+}
+$applicationVersion = $versionMatch.Matches[0].Groups['version'].Value
 $outputSuffix = if ($Variant) { "$Configuration-$Variant" } else { $Configuration }
 $outputDirectory = Join-Path $PSScriptRoot "out\wiliwili-symbian-$outputSuffix"
 
@@ -113,7 +120,13 @@ try {
         if (-not (Test-Path -LiteralPath $sourceSis -PathType Leaf)) {
             throw "SIS packaging completed but $sourceSis was not produced."
         }
-        Copy-Item -LiteralPath $sourceSis -Destination $outputDirectory -Force
+        $publicSisName = if ($Variant) {
+            "NIKINIKI_${applicationVersion}_${Configuration}_${Variant}.sis"
+        } else {
+            "NIKINIKI_${applicationVersion}_${Configuration}.sis"
+        }
+        Copy-Item -LiteralPath $sourceSis `
+            -Destination (Join-Path $outputDirectory $publicSisName) -Force
     }
 } finally {
     Pop-Location

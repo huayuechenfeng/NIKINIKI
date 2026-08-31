@@ -1,14 +1,14 @@
 # NIKINIKI 路线图
 
 > 状态：Active
-> 基线：1.0.0 正式发布后的产品主线
+> 基线：1.1.0 正式发布后的产品主线
 > 本页职责：维护 Now / Next / Later，不保存已完成实验的过程
 
-## Now：建立 1.0 回归与性能基线
+## Now：建立 1.1 回归与性能基线
 
 ### 1. 播放器稳定性
 
-- 在正式 Release 上完成 50 次进入、播放、退出和再次进入；
+- 在 1.1 正式 Release 上完成 50 次进入、播放、退出和再次进入；
 - MMF 安全流与 FFmpeg 风险流交替测试；
 - 分别确认真实 header preflight 的 `ACCEPT → MMF` 和 `REJECT → FFMPEG` 标记；
 - 覆盖暂停、seek、倍速、音量、画质、弹幕开关和控制栏；
@@ -28,21 +28,20 @@
 
 ### 3. 系统覆盖
 
-- 在原版 Symbian³、Anna 上安装与 Belle 相同的 1.0 SIS；
+- 在原版 Symbian³、Anna 上安装与 Belle 相同的 1.1 SIS；
 - 核验 Qt 4.7.4、Qt Mobility 1.2.x、TLS、冷启动、首页图片、登录和播放；
 - 在 N8/X7/C7 Belle 对同一 MP4 固定“全程硬解”，依次比较 `OpenUrlL`、
   增长文件 `OpenFileL`、完整下载 `OpenFileL`，禁止同时改变清晰度或解码器；
-- Nokia 603 已通过共享 `RFile` 增长文件与 best-effort 软件视频轨关闭复测；继续确认 8 MiB
-  起播预缓冲的开头流畅度，以及完整下载模式的文件大小、百分比和进度条显示；
+- Nokia 603 已通过共享 `RFile` 增长文件、best-effort 软件视频轨关闭、8 MiB 起播预缓冲、
+  完整下载进度 UI 和独立设置列表复测；
 - 若两个 `OpenFileL` 路径有画面而 `OpenUrlL` 黑屏，归因到 MMF streaming/controller；
   若三个应用内路径均黑而系统播放器播放同一本地文件正常，再进入 RWindow/Surface 显示链调查；
 - 收集系统版本、设备型号、运行库版本和完整结果，不把“预期兼容”记为通过。
 
-### 4. 首次启动冷缓存回归
+### 4. 首次启动跨设备回归
 
-- 卸载旧包、重启手机后重新安装，确保不是已预热的文件缓存；
-- 确认 `STARTUP_UI_PRESENTED` 先于 `CJK_FONT_LOAD_BEGIN`，主界面在完整字体读取期间保持可见和可操作；
-- 确认网络启动不等待完整字体，分块读取最终到达 `CJK_FONT_LOAD_READY`；
+- Nokia 603 已确认 1.1 最终包的首次启动字体非阻塞方案实际运行正常；
+- 在 N8 / E7 / X7 / C7 及原版 Symbian³ / Anna 上继续复测卸载、重启、重装后的冷缓存启动；
 - 覆盖内部存储和存储卡安装，并检查完整字体接入后生僻字 fallback 没有缺字或崩溃；
 - 真机结果只写入 `reference/DEVICE_TEST_MATRIX.md`，静态检查和 GCCE 编译不能替代冷启动结论。
 
