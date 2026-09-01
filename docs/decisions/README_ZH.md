@@ -8,5 +8,6 @@
 | [0002](0002-persistent-player-lifecycle.md) | Accepted | 播放器完整原生对象图跨会话持久复用 |
 | [0003](0003-header-preflight-routing.md) | Accepted | 用真实 H.264 header preflight 选择 MMF/FFmpeg |
 | [0004](0004-on-device-software-fallback.md) | Accepted | 媒体兼容在手机本机完成，不使用远端转码 |
+| [0005](0005-optional-ref7-hardware-extension.md) | Accepted | ref7 补丁与 Header/Submit split 作为可选扩展，默认回退不变 |
 
 原始实验数据在 `docs/research/`；ADR 只保存背景、决定和后果。

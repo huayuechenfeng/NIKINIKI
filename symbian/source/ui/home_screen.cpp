@@ -371,9 +371,14 @@ void HomeScreen::draw(
     // Search occupies its own full-width row. Keeping it separate from the
     // category tabs gives the native Symbian editor enough touch area and
     // prevents the old 68x18 button from being mistaken for a decoration.
+    const float searchLeft = left + 10.0f;
+    const float searchWidth = width - left - 20.0f;
+    const float searchButtonWidth = 56.0f;
+    const float searchButtonLeft = searchLeft + searchWidth -
+        searchButtonWidth;
     nvgBeginPath(context);
-    nvgRoundedRect(context, left + 10.0f, 8.0f,
-                   width - left - 20.0f, 40.0f, 10.0f);
+    nvgRoundedRect(context, searchLeft, 8.0f,
+                   searchWidth, 40.0f, 10.0f);
     nvgFillColor(context, nvgRGBA(255, 255, 255, 14));
     nvgFill(context);
     nvgStrokeWidth(context, 1.2f);
@@ -390,9 +395,21 @@ void HomeScreen::draw(
              nvgRGB(188, 188, 200),
              NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
     drawText(context, m_networkStatus,
-             width - 20.0f, 28.0f, 8.8f,
+             searchButtonLeft - 7.0f, 28.0f, 8.8f,
              nvgRGB(148, 148, 162),
              NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE);
+    nvgBeginPath(context);
+    nvgRoundedRect(context, searchButtonLeft, 8.0f,
+                   searchButtonWidth, 40.0f, 9.0f);
+    nvgFillColor(context, nvgRGBA(255, 255, 255, 8));
+    nvgFill(context);
+    nvgStrokeWidth(context, 1.0f);
+    nvgStrokeColor(context, nvgRGBA(251, 114, 153, 105));
+    nvgStroke(context);
+    drawText(context, QString::fromUtf8("搜索"),
+             searchButtonLeft + searchButtonWidth * 0.5f, 28.0f, 11.2f,
+             nvgRGB(251, 145, 173),
+             NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
 
     static const char *tabLabels[] = {
         "推荐", "热门", "番剧", "直播"
@@ -442,19 +459,28 @@ void HomeScreen::draw(
                  nvgRGB(251, 114, 153),
                  NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
     }
-    int index;
-    for (index = 0; index < m_models.size(); ++index) {
-        const int row = index / kColumns;
-        const int column = index % kColumns;
-        const float x = left + kGridPadding +
-                        column * (m_cardWidth + kCardGap);
+    const float viewportBottom = height - NavigationRail::height();
+    const int rows = (m_models.size() + kColumns - 1) / kColumns;
+    int row;
+    for (row = 0; row < rows; ++row) {
         const float y = kHeaderHeight + kGridPadding + m_scroll +
-                        m_pullDistance +
-                        row * kCardStep;
-        drawCard(context, index, QRectF(x, y, m_cardWidth, kCardHeight));
+                        m_pullDistance + row * kCardStep;
+        if (y + kCardHeight < kHeaderHeight)
+            continue;
+        if (y > viewportBottom)
+            break;
+        int column;
+        for (column = 0; column < kColumns; ++column) {
+            const int index = row * kColumns + column;
+            if (index >= m_models.size())
+                break;
+            const float x = left + kGridPadding +
+                column * (m_cardWidth + kCardGap);
+            drawCard(context, index,
+                     QRectF(x, y, m_cardWidth, kCardHeight));
+        }
     }
     if (m_canLoadMore && !m_models.isEmpty()) {
-        const int rows = (m_models.size() + kColumns - 1) / kColumns;
         const float hintY = kHeaderHeight + kGridPadding + m_scroll +
             rows * kCardStep + 8.0f;
         drawText(context,

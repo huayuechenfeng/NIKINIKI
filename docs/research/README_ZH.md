@@ -14,10 +14,18 @@
 | [Direct DevVideo 探针](player/PLAYER_1.0_DEVVIDEO_DIRECT_PROBE_ZH.md) | DSA Phase A 边界 |
 | [原生横屏定位](player/PLAYER_ORIENTATION_PROBLEM_AND_WORKAROUND_ZH.md) | app-shell 探针、窗口时序和四视频验证 |
 
-## 发布后研究候选
+## H.264 ref7 研究结论
 
-- [BCM2763/HwDevice](player/post-1.0/POST_1.0_BCM2763_HWDEVICE_RESEARCH_ZH.md)；
-- [H.264 reference/DPB](player/post-1.0/POST_1.0_H264_REFERENCE_DPB_RESEARCH_ZH.md)；
+- [H.264 ref7 硬件解码结题报告](player/H264_REF7_HARDWARE_DECODE_FINAL_REPORT_ZH.md)：
+  Nokia 603 的 host admission gate、两条成功解锁路径、通用特征补丁和产品边界；
+- [通用 ref7 补丁](../../symbian/patches/h264-ref7/README_ZH.md)：不随 SIS 安装的手动实验成果；
+- [阶段研究计划](player/post-1.0/H264_HARDWARE_DECODE_RESEARCH_PLAN_ZH.md)、
+  [BCM2763/HwDevice 早期假设](player/post-1.0/POST_1.0_BCM2763_HWDEVICE_RESEARCH_ZH.md)和
+  [reference/DPB/fake 控制](player/post-1.0/POST_1.0_H264_REFERENCE_DPB_RESEARCH_ZH.md)
+  已结题归档，不再描述当前优先级。
+
+## 其他发布后研究
+
 - [DevVideo display/post-processor](player/post-1.0/POST_1.0_DEVVIDEO_DISPLAY_RESEARCH_ZH.md)；
 - [直播架构早期研究](future/LIVE_PLAYBACK_ARCHITECTURE_ZH.md)。
 

@@ -21,6 +21,7 @@
 | 路径 | 内容 |
 |---|---|
 | `README.md`、`LICENSE`、`NOTICE.md` | 产品说明、GPLv3 和来源/第三方声明 |
+| `.gitignore`、`.gitattributes` | 公开仓库边界与可分发文本补丁的稳定换行规则 |
 | `AGENTS.md` | 产品主线边界、当前事实、冻结规则与后续代理接手约束 |
 | `.github/` | NIKINIKI Issue 模板和 Actions 策略说明；无活动构建 workflow |
 | `docs/` | 当前状态、决策、设备证据和历史发行说明 |
@@ -28,6 +29,7 @@
 | `symbian/source`、`symbian/include`、`symbian/generated` | 正式应用源码 |
 | `symbian/env`、`symbian/tools`、`symbian/Build-*.ps1` | 可复现构建与诊断工具 |
 | `symbian/probes` | 仍可由公开树独立构建的能力探针 |
+| `symbian/patches` | 不随 SIS 安装的纯文本可选补丁、适用范围与完整性清单；不得包含目标 DLL/ROM |
 | `symbian/resources` | 字体、图片和资源许可证 |
 | `symbian/third_party` | 固定的必要源码、许可证及 FFmpeg 重建脚本 |
 | `tools/` | 主机工具、字体子集与公开仓库边界检查脚本 |
@@ -41,6 +43,8 @@
 - 除 `prerequisites/Qt-4.7.403-for-Anna.sis` 和
   `prerequisites/QtMobility-1.2.1-for-Anna.sis` 外的 `*.sis`，以及所有
   `*.sisx`、`*.exe`、`*.dll`、`*.lib`、`*.a`、`*.o`、`*.obj`；
+- Nokia/Broadcom DLL、ROM、固件镜像、设备转储或从中提取的可执行 payload；纯文本 `.rmp`
+  只能记录最小 expected-before/after 字节和适用边界；
 - qmake/SBS/MOC/RCC/RSS/PKG 自动生成物和 SDK 镜像；
 - 证书、私钥、Cookie、账号数据、CODA 地址、设备转储及未经脱敏日志；
 - AI 附件、个人工作记录和本地编辑器配置；产品级 `AGENTS.md` 明确保留。

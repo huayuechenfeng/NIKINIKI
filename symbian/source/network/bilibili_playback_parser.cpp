@@ -425,14 +425,16 @@ bool BilibiliPlaybackParser::parseLivePlaybackSource(
                 if (baseUrl.isEmpty())
                     continue;
                 int score = 60;
-                if (protocol == QString::fromLatin1("http_hls") &&
-                    formatName == QString::fromLatin1("ts")) {
+                if (protocol == QString::fromLatin1("http_stream") &&
+                    formatName == QString::fromLatin1("flv")) {
                     score = 0;
                 } else if (protocol == QString::fromLatin1("http_hls") &&
-                           formatName == QString::fromLatin1("fmp4")) {
+                           formatName == QString::fromLatin1("ts")) {
                     score = 20;
-                } else if (protocol == QString::fromLatin1("http_stream") &&
-                           formatName == QString::fromLatin1("flv")) {
+                } else if (protocol == QString::fromLatin1("http_hls") &&
+                           formatName == QString::fromLatin1("fmp4")) {
+                    // Belle's HLS controller predates fragmented-MP4 HLS.
+                    // Keep it as a final V2 fallback after TS and FLV.
                     score = 40;
                 }
                 const struct mg_str urlInfos =
@@ -640,9 +642,8 @@ bool BilibiliPlaybackParser::parseDanmaku(
         danmaku.fontSize = fields.at(2).toInt();
         danmaku.color = fields.at(3).toInt();
         danmaku.text = text.left(120);
-        // Advanced/script/reverse danmaku is deliberately omitted on the
-        // memory-constrained phone renderer. Scrolling, top and bottom modes
-        // cover the normal Bilibili experience.
+        // Preserve Bilibili's mode semantics. Modes 4/5 are fixed bottom/top
+        // comments and modes 1/6 are scrolling comments.
         if (danmaku.mode == 1 || danmaku.mode == 4 ||
             danmaku.mode == 5 || danmaku.mode == 6) {
             items->append(danmaku);

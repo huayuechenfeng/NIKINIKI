@@ -23,6 +23,7 @@ class QResizeEvent;
 namespace wiliwili {
 
 class LocalDownloadWriter;
+class FlvLiveDemuxer;
 class Mp4AvcProbeReader;
 class SoftVideoSurfaceWidget;
 class VideoOverlayWidget;
@@ -72,6 +73,7 @@ public:
         const QString &title,
         const QByteArray &cookieHeader);
     void setDanmaku(const QVector<DanmakuItemCompat> &items);
+    void adjustPersistentVolume(int delta);
     void closePlayer();
 
     bool isPlayerVisible() const;
@@ -124,6 +126,8 @@ private:
     void togglePlayback();
     void seekBy(qint64 deltaMilliseconds);
     void seekTo(qint64 milliseconds);
+    void adjustVolume(int delta);
+    void saveVolumePreference() const;
     void requestQuality(int quality);
     void createVideoOutputWidget();
     void presentSoftwareFrame(const QImage &frame, qint64 timestamp);
@@ -136,6 +140,12 @@ private:
     void openDeferredMmfSource(const char *reason);
     void handleAvcProbeFailure(const char *reason);
     void scheduleSourceAt(int index, int delayMilliseconds);
+    int nextLiveFlvSourceIndex(int startIndex) const;
+    void startLiveFlvDemuxFallback(int sourceIndex);
+    void pollLiveFlvDemuxFallback();
+    void startLiveFlvAudioClock();
+    void startLiveFlvVideoIfReady();
+    void retryLiveFlvDemuxFallback(const char *reason);
     void startLocalDownloadFallback(
         int sourceIndex, bool openWhileDownloading = false);
     void openLocalDownloadForPlayback(const char *reason);
@@ -185,6 +195,7 @@ private:
     QNetworkAccessManager *m_downloadManager;
     QNetworkReply *m_downloadReply;
     LocalDownloadWriter *m_downloadFile;
+    FlvLiveDemuxer *m_liveFlvDemuxer;
     Mp4AvcProbeReader *m_avcProbeReader;
     QNetworkReply *m_avcProbeReply;
     QByteArray m_avcProbeBytes;
@@ -204,6 +215,9 @@ private:
     QVector<QByteArray> m_avcPendingUnits;
     QVector<qint64> m_avcPendingTimes;
     QVector<qint64> m_avcPendingPresentationTimes;
+    QVector<QByteArray> m_liveFlvPendingUnits;
+    QVector<qint64> m_liveFlvPendingTimes;
+    QVector<qint64> m_liveFlvPendingPresentationTimes;
     bool m_avcProbeResetDecoder;
     bool m_avcHeaderPreflightPending;
     bool m_avcProbeInputFinished;
@@ -227,20 +241,27 @@ private:
     int m_screenAwakeTimerId;
     int m_pendingSourceIndex;
     int m_sourcePass;
+    int m_liveMimeVariant;
+    int m_liveFlvRedirectCount;
     int m_downloadSourceIndex;
     qint64 m_downloadBytes;
     qint64 m_downloadTotalBytes;
+    qint64 m_liveFlvAudioBytes;
     QString m_downloadPath;
     QTime m_sourceClock;
     int m_automaticFallbackTarget;
     int m_playbackMode;
     int m_decoderMode;
+    int m_volume;
     bool m_closing;
     bool m_isLive;
     bool m_streamPlaybackMode;
     bool m_localFallbackAttempted;
     bool m_localPlaybackActive;
     bool m_openLocalWhileDownloading;
+    bool m_liveFlvDemuxActive;
+    bool m_liveFlvAudioOpen;
+    bool m_liveFlvVideoStarted;
     bool m_policyRouteFailed;
     bool m_softwareVideoRouteSelected;
     bool m_landscapeRequested;

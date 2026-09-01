@@ -24,12 +24,16 @@ NIKINIKI 是本仓库唯一可编辑的产品主线。产品代码、资源、�
 - 内部 `wiliwili_symbian` target、UID 和部分路径为升级兼容与来源追踪而保留；
 - 一个 ARMv5 应用 SIS 覆盖 Symbian³、Anna 和 Belle，不按系统拆包；
 - 不引入桥接、远端重封装或远端转码，媒体兼容必须在手机本机完成；
+- `symbian/patches/h264-ref7/` 的纯文本 RomPatcher+ 补丁是手动、非自启的可选成果，不随 SIS
+  安装；当前只有 Nokia 603 SW113 真机通过，其他固件的静态特征命中不能写成设备通过；
 - 公开仓库与 Release 的允许内容、排除项和验收门见
   `docs/developer/REPOSITORY_POLICY_ZH.md`。
 
 ## 播放器不变量
 
 - Progressive MP4 先进行只读 Broadcom H.264 header preflight；接受时走 MMF，明确拒绝时走本机 FFmpeg；preflight 本身不初始化或显示 DevVideo；
+- ref7 补丁启用时主程序仍提交真实 header 和原始 MP4，只自然利用 HwDevice 的接受结果；应用不得
+  安装、探测或自动启用补丁；
 - 软件视频由裁剪的 H.264-only PPSSPP-FFmpeg 解码，AAC 和主时钟继续使用 MMF；
 - 软件帧采用 CPU YUV420P→RGB565 LUT2X2，并由独立不透明原生表面显示；唯一透明 ARGB 顶层只绘制弹幕和控制；
 - player controller、native video host、backend/observer、MMF utility、soft surface 和 overlay 都跨播放会话持久复用；退出播放只停止、解绑和隐藏；
@@ -49,10 +53,14 @@ NIKINIKI 是本仓库唯一可编辑的产品主线。产品代码、资源、�
 - GLES 三平面 YUV 正式输出：Nokia 603 真机上传和提交成本过高；
 - 旧虚拟横屏、soft-only native-landscape、`AA_S60DontConstructApplicationPanes` 或过早隐藏主 QGL；
 - `QMediaPlayer + QVideoWidget` 正式后端、大量透明顶层窗口、只持久化 overlay；
-- Q6/240P 能力阶梯、SPS/DPB 伪装、全局 `-O2/-O3` FFmpeg 构建；
+- Q6/240P 能力阶梯、把 full-SPS fake 持续送入 decoder 的播放方案、全局 `-O2/-O3` FFmpeg 构建；
 - 诊断用 `ffmpeglatedrop1`、`headercontrol1`、`codeccompat1`、`armsoftprobe1` 作为普通或发布构建基线。
 
 这些结论的原始证据保存在 `docs/research/`，不是活文档。
+
+H.264 ref7 硬解支线已按 H1 结题。Direct DevVideo Header/Submit split 是 99/99 CRC 正确的已证明
+路径，但它要求同一应用持有的 decoder 会话，不能靠修改当前临时 preflight 后直接传递给新的 MMF
+会话。最终边界见 `docs/research/player/H264_REF7_HARDWARE_DECODE_FINAL_REPORT_ZH.md` 和 ADR-0005。
 
 ## 工作与验证规则
 

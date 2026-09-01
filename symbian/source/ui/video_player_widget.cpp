@@ -1,4 +1,5 @@
 #include "ui/video_player_widget.h"
+#include "platform/flv_live_demuxer.h"
 #include "platform/mp4_avc_probe_reader.h"
 #include "platform/video_playback_backend.h"
 #ifdef WILIWILI_ENABLE_DEVVIDEO_DIRECT_PROBE
@@ -12,6 +13,7 @@
 #include <QtCore/QEvent>
 #include <QtCore/QFile>
 #include <QtCore/QPointer>
+#include <QtCore/QSettings>
 #include <QtCore/QTime>
 #include <QtCore/QTimer>
 #include <QtGui/QApplication>
@@ -153,6 +155,34 @@ static const int KSoftPositionRefreshMilliseconds = 500;
 // catches the network writer during the first seconds. Eight MiB remains a
 // small on-disk head start while avoiding that immediately visible stutter.
 static const qint64 KOpenFileStreamingStartBytes = 8LL * 1024LL * 1024LL;
+// AAC is much smaller than the original interleaved FLV.  Keep roughly
+// several seconds of audio on disk before MMF opens the shared ADTS stream;
+// video starts only after MMF has prepared and an IDR-led batch is ready.
+static const qint64 KLiveAacStartBytes = 96LL * 1024LL;
+static const qint64 KLiveAacMaximumBytes = 64LL * 1024LL * 1024LL;
+static const int KLiveVideoStartUnits = 45;
+static const int KLiveVideoPendingMaximumUnits = 900;
+
+static QByteArray playbackMimeTypeForUrl(
+    const QString &sourceUrl, int variant)
+{
+    const QString path = QUrl(sourceUrl).path().toLower();
+    if (path.endsWith(QString::fromLatin1(".m3u8"))) {
+        if (variant == 0)
+            return QByteArray("application/x-mpegURL");
+        if (variant == 1)
+            return QByteArray("application/vnd.apple.mpegurl");
+        return QByteArray();
+    }
+    if (path.endsWith(QString::fromLatin1(".flv"))) {
+        if (variant == 0)
+            return QByteArray("video/flv");
+        if (variant == 1)
+            return QByteArray("video/x-flv");
+        return QByteArray();
+    }
+    return QByteArray();
+}
 
 #ifdef Q_OS_SYMBIAN
 typedef TUint32 OverlayFastCounterValue;
@@ -525,10 +555,11 @@ public:
           m_owner(0), m_updateTimerId(0),
           m_updateIntervalMilliseconds(KOverlayFrameIntervalMilliseconds),
           m_nativeWindowPrepared(false), m_danmakuEnabled(true),
-          m_nativeDanmakuActive(false),
+          m_nativeDanmakuActive(false), m_danmakuWasVisible(false),
           m_controlsVisible(true), m_controlsAge(0), m_pressed(false),
           m_controlsVisibleOnPress(true),
-          m_draggingProgress(false), m_dragPreviewPosition(0),
+          m_draggingProgress(false), m_draggingVolume(false),
+          m_dragPreviewPosition(0),
           m_speedIndex(0), m_qualityMenuVisible(false),
           m_firstPaintPending(false),
           m_decoderFrameSerial(0),
@@ -591,12 +622,16 @@ public:
         // second session reached its delayed MMF rebuild.
         m_owner = owner;
         m_danmaku.clear();
+        m_danmakuTextWidths.clear();
+        m_danmakuDisplayStartMilliseconds.clear();
         m_nativeDanmakuActive = false;
+        m_danmakuWasVisible = false;
         m_controlsVisible = true;
         m_controlsAge = 0;
         m_pressed = false;
         m_controlsVisibleOnPress = true;
         m_draggingProgress = false;
+        m_draggingVolume = false;
         m_dragPreviewPosition = 0;
         m_speedIndex = 0;
         m_qualityMenuVisible = false;
@@ -659,9 +694,13 @@ public:
         // touching the parked VideoPlayerWidget while browsing resumes.
         m_owner = 0;
         m_danmaku.clear();
+        m_danmakuTextWidths.clear();
+        m_danmakuDisplayStartMilliseconds.clear();
         m_nativeDanmakuActive = false;
+        m_danmakuWasVisible = false;
         m_pressed = false;
         m_draggingProgress = false;
+        m_draggingVolume = false;
         m_qualityMenuVisible = false;
         m_decoderFrameSerial = 0;
         m_framePositionMilliseconds = 0;
@@ -710,6 +749,20 @@ public:
         if (m_owner.data() != owner)
             return;
         m_danmaku = items;
+        m_danmakuTextWidths.clear();
+        m_danmakuDisplayStartMilliseconds.clear();
+        QFont widthFont = QApplication::font();
+        widthFont.setBold(true);
+        int widthIndex;
+        for (widthIndex = 0; widthIndex < m_danmaku.size(); ++widthIndex) {
+            widthFont.setPixelSize(qBound(
+                13, m_danmaku.at(widthIndex).fontSize * 2 / 3, 24));
+            m_danmakuTextWidths.append(
+                QFontMetrics(widthFont).width(
+                    m_danmaku.at(widthIndex).text));
+            m_danmakuDisplayStartMilliseconds.append(-1);
+        }
+        m_danmakuWasVisible = false;
         // Danmaku is fetched after media playback starts. Do not introduce
         // delayed network results halfway across the screen: scrolling items
         // older than this media position were never able to enter at x=right
@@ -724,6 +777,7 @@ public:
     void sourceChanged()
     {
         m_draggingProgress = false;
+        m_draggingVolume = false;
         m_qualityMenuVisible = false;
         m_controlsVisible = true;
         m_controlsAge = 0;
@@ -735,6 +789,12 @@ public:
         if (m_owner && m_owner->m_player)
             m_scrollingDanmakuFloorMilliseconds =
                 m_owner->m_player->position();
+        int index;
+        for (index = 0;
+             index < m_danmakuDisplayStartMilliseconds.size(); ++index) {
+            m_danmakuDisplayStartMilliseconds[index] = -1;
+        }
+        m_danmakuWasVisible = false;
         if (m_owner && m_owner->m_isLive)
             m_speedIndex = 0;
         if (m_owner)
@@ -748,6 +808,12 @@ public:
         invalidatePositionCache();
         m_scrollingDanmakuFloorMilliseconds =
             qMax<qint64>(0, mediaPositionMilliseconds);
+        int index;
+        for (index = 0;
+             index < m_danmakuDisplayStartMilliseconds.size(); ++index) {
+            m_danmakuDisplayStartMilliseconds[index] = -1;
+        }
+        m_danmakuWasVisible = false;
         update();
     }
 
@@ -763,6 +829,15 @@ public:
     bool controlsVisible() const
     {
         return m_controlsVisible;
+    }
+
+    void revealControls()
+    {
+        m_controlsVisible = true;
+        m_controlsAge = 0;
+        if (m_owner)
+            m_owner->updateVideoGeometry(true, m_qualityMenuVisible);
+        update();
     }
 
     bool qualityMenuVisible() const
@@ -802,6 +877,34 @@ public:
         if (m_framePositionValid)
             return m_framePositionMilliseconds;
         return m_owner->m_player->position();
+    }
+
+    bool hasVisibleDanmaku(qint64 position) const
+    {
+        if (m_nativeDanmakuActive || !m_danmakuEnabled ||
+            m_danmaku.isEmpty()) {
+            return false;
+        }
+        const qint64 earliest = position - 7500;
+        int low = 0;
+        int high = m_danmaku.size();
+        while (low < high) {
+            const int middle = low + (high - low) / 2;
+            if (m_danmaku.at(middle).timeMilliseconds < earliest)
+                low = middle + 1;
+            else
+                high = middle;
+        }
+        int index;
+        for (index = low; index < m_danmaku.size(); ++index) {
+            const qint64 timestamp =
+                m_danmaku.at(index).timeMilliseconds;
+            if (timestamp > position)
+                break;
+            if (timestamp >= m_scrollingDanmakuFloorMilliseconds)
+                return true;
+        }
+        return false;
     }
 
     void resetPacingTelemetry()
@@ -955,6 +1058,7 @@ protected:
             return;
         }
 #endif
+        bool controlsChanged = false;
         if (m_owner && m_owner->m_downloadReply) {
             m_controlsVisible = true;
             m_controlsAge = 0;
@@ -962,6 +1066,7 @@ protected:
         } else if (m_controlsVisible && !m_qualityMenuVisible &&
             ++m_controlsAge > 90) {
             m_controlsVisible = false;
+            controlsChanged = true;
             if (m_owner)
                 m_owner->updateVideoGeometry(false, false);
         }
@@ -985,7 +1090,9 @@ protected:
                 m_owner->m_glesYuvActive = false;
             }
             m_framePositionValid = false;
-#if defined(Q_OS_SYMBIAN) && defined(WILIWILI_ENABLE_FFMPEG_SOFT_DECODER)
+#if defined(Q_OS_SYMBIAN) && \
+    (defined(WILIWILI_ENABLE_FFMPEG_SOFT_DECODER) || \
+     defined(WILIWILI_ENABLE_E7_DEVVIDEO_MEMORY_DIAGNOSTIC))
             if (avcPlaybackActive) {
                 m_framePositionMilliseconds =
                     sampleSoftPosition();
@@ -1015,7 +1122,18 @@ protected:
             m_nativeDanmakuActive = m_owner->updateNativeDanmaku(
                 m_danmaku, m_danmakuEnabled);
         }
-        update();
+        bool danmakuVisible = false;
+        if (!m_nativeDanmakuActive && m_danmakuEnabled &&
+            !m_danmaku.isEmpty()) {
+            danmakuVisible = hasVisibleDanmaku(
+                presentationPosition());
+        }
+        const bool repaint = controlsChanged || m_controlsVisible ||
+            m_qualityMenuVisible || downloadProgressVisible() ||
+            danmakuVisible || m_danmakuWasVisible;
+        m_danmakuWasVisible = danmakuVisible;
+        if (repaint)
+            update();
         event->accept();
     }
 
@@ -1097,8 +1215,11 @@ protected:
         updateHitBoxes();
         m_draggingProgress = !m_owner->m_isLive &&
             m_progressBox.contains(position);
+        m_draggingVolume = m_volumeBox.contains(position);
         if (m_draggingProgress)
             m_dragPreviewPosition = progressPosition(position.x());
+        if (m_draggingVolume)
+            setVolumeFromPosition(position.y());
         m_controlsVisible = true;
         m_controlsAge = 0;
         m_owner->updateVideoGeometry(true, m_qualityMenuVisible);
@@ -1127,6 +1248,11 @@ protected:
         const QPoint position = logicalPosition(event->pos());
         if (m_pressed && m_draggingProgress) {
             m_dragPreviewPosition = progressPosition(position.x());
+            m_controlsVisible = true;
+            m_controlsAge = 0;
+            update();
+        } else if (m_pressed && m_draggingVolume) {
+            setVolumeFromPosition(position.y());
             m_controlsVisible = true;
             m_controlsAge = 0;
             update();
@@ -1163,6 +1289,14 @@ protected:
             m_dragPreviewPosition = progressPosition(position.x());
             m_owner->seekTo(m_dragPreviewPosition);
             m_draggingProgress = false;
+            m_controlsAge = 0;
+            update();
+            event->accept();
+            return;
+        }
+        if (m_draggingVolume) {
+            setVolumeFromPosition(position.y());
+            m_draggingVolume = false;
             m_controlsAge = 0;
             update();
             event->accept();
@@ -1372,15 +1506,48 @@ private:
     {
         m_backBox = QRect(0, 0, 64, 52);
         m_playBox = QRect(8, canvasHeight() - 56, 48, 48);
-        m_progressBox = QRect(62, canvasHeight() - 35,
-                            qMax(1, canvasWidth() - 340), 24);
-        m_qualityBox = QRect(canvasWidth() - 268,
-                            canvasHeight() - 52, 82, 40);
-        m_danmakuBox = QRect(canvasWidth() - 180,
-                            canvasHeight() - 52, 82, 40);
-        m_speedBox = QRect(canvasWidth() - 92,
-                          canvasHeight() - 52, 84, 40);
+        if (canvasWidth() >= 560) {
+            m_progressBox = QRect(62, canvasHeight() - 35,
+                                qMax(1, canvasWidth() - 346), 24);
+            m_volumeBox = QRect(canvasWidth() - 42, 66, 32, 148);
+            m_qualityBox = QRect(canvasWidth() - 268,
+                                canvasHeight() - 52, 82, 40);
+            m_danmakuBox = QRect(canvasWidth() - 180,
+                                canvasHeight() - 52, 82, 40);
+            m_speedBox = QRect(canvasWidth() - 92,
+                              canvasHeight() - 52, 84, 40);
+        } else {
+            m_progressBox = QRect(62, canvasHeight() - 35,
+                                qMax(1, canvasWidth() - 340), 24);
+            m_volumeBox = QRect(canvasWidth() - 40, 58, 30,
+                               qMax(100, canvasHeight() - 132));
+            m_qualityBox = QRect(canvasWidth() - 268,
+                                canvasHeight() - 52, 82, 40);
+            m_danmakuBox = QRect(canvasWidth() - 180,
+                                canvasHeight() - 52, 82, 40);
+            m_speedBox = QRect(canvasWidth() - 92,
+                              canvasHeight() - 52, 84, 40);
+        }
+        m_volumeTrackBox = QRect(
+            m_volumeBox.center().x() - 5,
+            m_volumeBox.top() + 30,
+            10,
+            qMax(20, m_volumeBox.height() - 42));
         updateQualityItemBoxes();
+    }
+
+    void setVolumeFromPosition(int y)
+    {
+        if (!m_owner || m_volumeTrackBox.height() <= 0)
+            return;
+        const qreal ratio = qBound<qreal>(
+            static_cast<qreal>(0.0),
+            (m_volumeTrackBox.bottom() - y) /
+                static_cast<qreal>(m_volumeTrackBox.height()),
+            static_cast<qreal>(1.0));
+        const int requested = qBound(0,
+            static_cast<int>(ratio * 100.0 + 0.5), 100);
+        m_owner->adjustPersistentVolume(requested - m_owner->m_volume);
     }
 
     void updateQualityItemBoxes()
@@ -1455,7 +1622,6 @@ private:
         const qint64 position = presentationPosition();
         const int laneHeight = qMax(18, canvasHeight() / 12);
         const int lanes = qMax(3, (canvasHeight() - 112) / laneHeight);
-        const int fixedLanes = qMax(1, qMin(4, lanes / 2));
 
         // The XML list is sorted by timestamp by the parser. Locate the first
         // potentially visible entry instead of scanning all (up to 1200)
@@ -1472,44 +1638,56 @@ private:
         }
         int index;
         int rendered = 0;
+        int lastFontSize = -1;
+        QFont font = QApplication::font();
+        font.setBold(true);
         for (index = low; index < m_danmaku.size(); ++index) {
             const DanmakuItemCompat &item = m_danmaku.at(index);
             if (item.timeMilliseconds > position)
                 break;
             const bool scrolling = item.mode == 1 || item.mode == 6;
-            if (scrolling &&
-                item.timeMilliseconds < m_scrollingDanmakuFloorMilliseconds) {
+            if (scrolling && item.timeMilliseconds <
+                m_scrollingDanmakuFloorMilliseconds) {
                 continue;
             }
-            const qint64 elapsed = position - item.timeMilliseconds;
-            const qint64 lifetime =
-                (item.mode == 4 || item.mode == 5) ? 4000 : 7500;
+            qint64 elapsed = position - item.timeMilliseconds;
+            const qint64 lifetime = scrolling ? 7500 : 4000;
+            if (scrolling &&
+                index < m_danmakuDisplayStartMilliseconds.size()) {
+                qint64 &displayStart =
+                    m_danmakuDisplayStartMilliseconds[index];
+                // Anchor a scrolling comment when it is first actually
+                // painted. A late network reply or a long UI frame can no
+                // longer make its first visible frame appear mid-screen.
+                if (displayStart < 0)
+                    displayStart = position;
+                elapsed = position - displayStart;
+            }
             if (elapsed < 0 || elapsed > lifetime)
                 continue;
-            QFont font = QApplication::font();
-            font.setPixelSize(qBound(13, item.fontSize * 2 / 3, 24));
-            font.setBold(true);
-            painter->setFont(font);
-            const QFontMetrics metrics(font);
-            const int textWidth = metrics.width(item.text);
-            const int lane = index % lanes;
-            qreal x = 0.0;
-            qreal y = 58.0 + lane * laneHeight;
-            if (item.mode == 4 || item.mode == 5) {
-                x = (canvasWidth() - textWidth) * 0.5;
-                y = item.mode == 5
-                    ? 62.0 + (index % fixedLanes) * laneHeight
-                    : canvasHeight() - 84.0 -
-                        (index % fixedLanes) * laneHeight;
-            } else {
-                const qreal progress = elapsed /
-                    static_cast<qreal>(lifetime);
-                if (item.mode == 6)
-                    x = -textWidth + progress *
+            const int fontSize = qBound(
+                13, item.fontSize * 2 / 3, 24);
+            if (fontSize != lastFontSize) {
+                font.setPixelSize(fontSize);
+                painter->setFont(font);
+                lastFontSize = fontSize;
+            }
+            const int textWidth = index < m_danmakuTextWidths.size()
+                ? m_danmakuTextWidths.at(index)
+                : QFontMetrics(font).width(item.text);
+            const qreal progress = elapsed /
+                static_cast<qreal>(lifetime);
+            qreal x = (canvasWidth() - textWidth) / 2.0;
+            qreal y = item.mode == 4
+                ? canvasHeight() - 82.0 : 82.0;
+            if (scrolling) {
+                const int lane = index % lanes;
+                x = item.mode == 6
+                    ? -textWidth + progress *
+                        (canvasWidth() + textWidth)
+                    : canvasWidth() - progress *
                         (canvasWidth() + textWidth);
-                else
-                    x = canvasWidth() - progress *
-                        (canvasWidth() + textWidth);
+                y = 58.0 + lane * laneHeight;
             }
             drawOutlinedText(
                 painter, QPointF(x, y), item.text,
@@ -1522,9 +1700,10 @@ private:
     bool downloadProgressVisible() const
     {
         return m_owner && m_owner->m_sessionActive &&
-            !m_owner->m_isLive &&
-            m_owner->m_playbackMode ==
-                VideoPlayerWidget::DownloadThenPlayback &&
+            (m_owner->m_isLive
+                ? m_owner->m_downloadReply != 0
+                : m_owner->m_playbackMode ==
+                    VideoPlayerWidget::DownloadThenPlayback) &&
             !m_owner->m_localPlaybackActive &&
             !m_owner->m_policyRouteFailed;
     }
@@ -1542,11 +1721,23 @@ private:
     {
         const qint64 downloaded = qMax<qint64>(
             0, m_owner->m_downloadBytes);
-        const qint64 total = qMax<qint64>(
-            0, m_owner->m_downloadTotalBytes);
+        // A live FLV response has no meaningful "file size".  The old panel
+        // reused the VOD download wording and therefore made the bounded
+        // startup buffer look like DownloadThenPlayback.  For the temporary
+        // growing-live route, measure only the amount required for the next
+        // local open and label it as buffering.
+        const bool liveBuffering = m_owner->m_isLive &&
+            (m_owner->m_openLocalWhileDownloading ||
+             m_owner->m_liveFlvDemuxActive);
+        const qint64 total = liveBuffering
+            ? (m_owner->m_liveFlvDemuxActive
+                ? KLiveAacStartBytes : KOpenFileStreamingStartBytes)
+            : qMax<qint64>(0, m_owner->m_downloadTotalBytes);
+        const qint64 progressBytes = m_owner->m_liveFlvDemuxActive
+            ? m_owner->m_liveFlvAudioBytes : downloaded;
         const int percentage = total > 0
             ? qBound(0, static_cast<int>(
-                downloaded * 100 / total), 100)
+                progressBytes * 100 / total), 100)
             : 0;
 
         painter->fillRect(rect(), QColor(12, 12, 18, 232));
@@ -1569,15 +1760,21 @@ private:
             QRect(panel.left() + 18, panel.top() + 15,
                   panel.width() - 36, 27),
             Qt::AlignCenter,
-            m_owner->m_downloadReply
-                ? QString::fromUtf8("正在下载视频")
-                : QString::fromUtf8("正在准备视频下载"));
+            liveBuffering
+                ? QString::fromUtf8("正在缓冲直播")
+                : m_owner->m_downloadReply
+                    ? QString::fromUtf8("正在下载视频")
+                    : QString::fromUtf8("正在准备视频下载"));
 
         QFont detailFont = QApplication::font();
         detailFont.setPixelSize(11);
         painter->setFont(detailFont);
         painter->setPen(QColor(188, 188, 201));
-        const QString detail = total > 0
+        const QString detail = liveBuffering
+            ? QString::fromUtf8("已缓冲 %1 / 起播缓冲 %2")
+                .arg(downloadSizeText(progressBytes))
+                .arg(downloadSizeText(total))
+            : total > 0
             ? QString::fromUtf8("已下载 %1 / 文件大小 %2")
                 .arg(downloadSizeText(downloaded))
                 .arg(downloadSizeText(total))
@@ -1623,7 +1820,9 @@ private:
             QRect(panel.left() + 18, panel.top() + 128,
                   panel.width() - 36, 17),
             Qt::AlignCenter,
-            QString::fromUtf8("下载完成后将自动开始播放"));
+            liveBuffering
+                ? QString::fromUtf8("达到起播缓冲后继续边下边播")
+                : QString::fromUtf8("下载完成后将自动开始播放"));
     }
 
     void drawControls(QPainter *painter)
@@ -1705,6 +1904,36 @@ private:
                                   QString::fromLatin1(" / ") +
                                   playerTimeText(duration));
 
+        // A narrow glass slider stays clear of the bottom transport row and
+        // uses the same dark/pink palette as the rest of the player.
+        painter->setPen(QPen(QColor(112, 112, 126, 180), 1));
+        painter->setBrush(QColor(27, 27, 38, 218));
+        painter->drawRoundedRect(m_volumeBox, 12, 12);
+        painter->setPen(QColor(214, 214, 224));
+        painter->setFont(smallFont);
+        painter->drawText(
+            QRect(m_volumeBox.left(), m_volumeBox.top() + 4,
+                  m_volumeBox.width(), 20),
+            Qt::AlignCenter,
+            QString::fromLatin1("%1").arg(m_owner->m_volume));
+        painter->setPen(QPen(QColor(104, 104, 118), 5,
+                            Qt::SolidLine, Qt::RoundCap));
+        painter->drawLine(m_volumeTrackBox.center().x(),
+                          m_volumeTrackBox.top(),
+                          m_volumeTrackBox.center().x(),
+                          m_volumeTrackBox.bottom());
+        const int volumeY = m_volumeTrackBox.bottom() -
+            m_owner->m_volume * m_volumeTrackBox.height() / 100;
+        painter->setPen(QPen(QColor(251, 114, 153), 5,
+                            Qt::SolidLine, Qt::RoundCap));
+        painter->drawLine(m_volumeTrackBox.center().x(), volumeY,
+                          m_volumeTrackBox.center().x(),
+                          m_volumeTrackBox.bottom());
+        painter->setPen(QPen(QColor(255, 208, 222), 1));
+        painter->setBrush(QColor(251, 114, 153));
+        painter->drawEllipse(
+            QPoint(m_volumeTrackBox.center().x(), volumeY), 6, 6);
+
         painter->setPen(QColor(230, 230, 236));
         painter->drawText(m_qualityBox, Qt::AlignCenter,
                           m_owner->qualityLabel());
@@ -1775,14 +2004,17 @@ private:
     int m_updateIntervalMilliseconds;
     bool m_nativeWindowPrepared;
     QVector<DanmakuItemCompat> m_danmaku;
+    QVector<int> m_danmakuTextWidths;
     bool m_danmakuEnabled;
     bool m_nativeDanmakuActive;
+    bool m_danmakuWasVisible;
     bool m_controlsVisible;
     int m_controlsAge;
     bool m_pressed;
     bool m_controlsVisibleOnPress;
     QPoint m_pressPosition;
     bool m_draggingProgress;
+    bool m_draggingVolume;
     qint64 m_dragPreviewPosition;
     int m_speedIndex;
     bool m_qualityMenuVisible;
@@ -1813,9 +2045,12 @@ private:
     qint64 m_overlayPainterEndMilliseconds;
     qint64 m_overlayOtherMilliseconds;
     qint64 m_scrollingDanmakuFloorMilliseconds;
+    QVector<qint64> m_danmakuDisplayStartMilliseconds;
     QRect m_backBox;
     QRect m_playBox;
     QRect m_progressBox;
+    QRect m_volumeBox;
+    QRect m_volumeTrackBox;
     QRect m_qualityBox;
     QRect m_danmakuBox;
     QRect m_speedBox;
@@ -1844,6 +2079,7 @@ VideoPlayerWidget::VideoPlayerWidget(
       m_player(0),
       m_downloadManager(new QNetworkAccessManager(this)),
       m_downloadReply(0), m_downloadFile(0),
+      m_liveFlvDemuxer(new FlvLiveDemuxer()),
       m_avcProbeReader(new Mp4AvcProbeReader()),
       m_avcProbeReply(0), m_avcProbeRangeStart(0),
       m_avcProbeRangeEnd(0), m_avcProbeStage(0),
@@ -1862,15 +2098,19 @@ VideoPlayerWidget::VideoPlayerWidget(
       m_retryTimerId(0), m_orientationTimerId(0),
       m_screenAwakeTimerId(0),
       m_pendingSourceIndex(-1), m_sourcePass(0),
+      m_liveMimeVariant(0), m_liveFlvRedirectCount(0),
       m_downloadSourceIndex(-1), m_downloadBytes(0),
-      m_downloadTotalBytes(0),
+      m_downloadTotalBytes(0), m_liveFlvAudioBytes(0),
       m_automaticFallbackTarget(0),
       m_playbackMode(UrlStreamingPlayback),
       m_decoderMode(AutomaticDecoder),
+      m_volume(80),
       m_closing(false), m_isLive(false),
       m_streamPlaybackMode(true),
       m_localFallbackAttempted(false), m_localPlaybackActive(false),
-      m_openLocalWhileDownloading(false), m_policyRouteFailed(false),
+      m_openLocalWhileDownloading(false),
+      m_liveFlvDemuxActive(false), m_liveFlvAudioOpen(false),
+      m_liveFlvVideoStarted(false), m_policyRouteFailed(false),
       m_softwareVideoRouteSelected(false),
       m_landscapeRequested(false), m_landscapeApplied(false),
       m_orientationStage(NativePortraitIdle),
@@ -1903,6 +2143,13 @@ VideoPlayerWidget::VideoPlayerWidget(
             this, SLOT(onDesktopWorkAreaResized(int)));
     connect(desktop, SIGNAL(resized(int)),
             this, SLOT(onDesktopScreenResized(int)));
+    QSettings settings(
+        QSettings::IniFormat, QSettings::UserScope,
+        QString::fromLatin1("wiliwili"),
+        QString::fromLatin1("wiliwili_symbian"));
+    m_volume = qBound(
+        0, settings.value(
+            QString::fromLatin1("player/volume"), 80).toInt(), 100);
     // Bind the MMF video output only after this full-window child owns a native
     // Symbian window. Binding while it is still hidden produces the null
     // receiver/disconnect warnings seen in the 0.6.3 device log.
@@ -1913,6 +2160,7 @@ VideoPlayerWidget::~VideoPlayerWidget()
 {
     qDebug() << "WW:PLAYER_SESSION_DESTROY_BEGIN"
              << static_cast<void *>(this);
+    saveVolumePreference();
     if (m_startTimerId)
         killTimer(m_startTimerId);
     if (m_pollTimerId)
@@ -1951,6 +2199,8 @@ VideoPlayerWidget::~VideoPlayerWidget()
     delete m_avcProbeReader;
     m_avcProbeReader = 0;
     cancelLocalDownloadFallback(true);
+    delete m_liveFlvDemuxer;
+    m_liveFlvDemuxer = 0;
     qDebug() << "WW:PLAYER_SESSION_DESTROY_READY"
              << static_cast<void *>(this);
 }
@@ -2140,12 +2390,21 @@ void VideoPlayerWidget::openSource(
     m_sourceIndex = -1;
     m_pendingSourceIndex = -1;
     m_sourcePass = 0;
+    m_liveMimeVariant = 0;
+    m_liveFlvRedirectCount = 0;
     m_downloadSourceIndex = -1;
     m_downloadBytes = 0;
     m_downloadTotalBytes = 0;
+    m_liveFlvAudioBytes = 0;
+    m_liveFlvPendingUnits.clear();
+    m_liveFlvPendingTimes.clear();
+    m_liveFlvPendingPresentationTimes.clear();
     m_localFallbackAttempted = false;
     m_localPlaybackActive = false;
     m_openLocalWhileDownloading = false;
+    m_liveFlvDemuxActive = false;
+    m_liveFlvAudioOpen = false;
+    m_liveFlvVideoStarted = false;
     m_policyRouteFailed = false;
     m_softwareVideoRouteSelected = false;
     m_lastReportedError = -1;
@@ -2215,13 +2474,21 @@ void VideoPlayerWidget::setDanmaku(
         m_overlay->setDanmaku(this, items);
 }
 
+void VideoPlayerWidget::adjustPersistentVolume(int delta)
+{
+    adjustVolume(delta);
+    saveVolumePreference();
+}
+
 void VideoPlayerWidget::loadSourceAt(int index)
 {
     if (!m_player || index < 0 || index >= m_sourceUrls.size())
         return;
     m_sourceIndex = index;
 
-#if defined(Q_OS_SYMBIAN) && defined(WILIWILI_ENABLE_FFMPEG_SOFT_DECODER)
+#if defined(Q_OS_SYMBIAN) && \
+    (defined(WILIWILI_ENABLE_FFMPEG_SOFT_DECODER) || \
+     defined(WILIWILI_ENABLE_E7_DEVVIDEO_MEMORY_DIAGNOSTIC))
     // On Nokia 603, opening MMF and a second Qt Network Range request for the
     // same CDN URL at the same time can leave the Range reply at zero bytes.
     // That used to abandon classification after ten seconds and made the
@@ -2231,7 +2498,14 @@ void VideoPlayerWidget::loadSourceAt(int index)
     // or the local software decoder.
     const bool canPreflightBeforeMmf = index == 0 && m_sourcePass == 0 &&
         m_avcProbeStage == 0 && !m_isLive &&
+#ifdef WILIWILI_ENABLE_E7_DEVVIDEO_MEMORY_DIAGNOSTIC
+        // The diagnostic needs one real Annex-B access unit for its own
+        // DevVideo session even when the UI has been set to hardware-only.
+        // It never redirects software-only selection into this route.
+        m_decoderMode != SoftwareOnlyDecoder &&
+#else
         m_decoderMode != HardwareOnlyDecoder &&
+#endif
         m_format.startsWith(QString::fromLatin1("mp4"),
                             Qt::CaseInsensitive) &&
         m_avcProbeReader && !m_avcProbeReply;
@@ -2283,12 +2557,15 @@ void VideoPlayerWidget::openMmfSourceAt(int index, const char *reason)
     if (!m_cookieHeader.isEmpty())
         request.setRawHeader("Cookie", m_cookieHeader);
     m_sourceClock.restart();
-    m_player->setMedia(QMediaContent(request));
+    const QByteArray mimeType = playbackMimeTypeForUrl(
+        m_sourceUrls.at(index), m_liveMimeVariant);
+    m_player->setMedia(QMediaContent(request), mimeType);
     m_player->play();
     m_lastReportedError = -1;
     qDebug() << "WW:PLAYER_SOURCE"
              << reason
              << (index + 1) << m_sourceUrls.size()
+             << "mimeVariant" << m_liveMimeVariant << mimeType
              << m_sourceUrls.at(index).startsWith(
                     QString::fromLatin1("https://"));
     m_overlay->update();
@@ -2583,8 +2860,15 @@ void VideoPlayerWidget::startPlaybackPresentation()
     winId();
     updateVideoGeometry(true, false);
     if (m_videoWidget && !m_softVideoActive) {
+#ifdef WILIWILI_ENABLE_E7_MMF_ROOT_WINDOW_DIAGNOSTIC
+        // The E7 diagnostic binds MMF to this top-level widget.  Keeping the
+        // normal native child hidden rules out a child-window occlusion or
+        // compositor routing failure while preserving the ARGB overlay.
+        m_videoWidget->hide();
+#else
         m_videoWidget->show();
         m_videoWidget->winId();
+#endif
     }
     if (m_softVideoSurface && m_softVideoActive) {
         m_softVideoSurface->show();
@@ -2592,9 +2876,18 @@ void VideoPlayerWidget::startPlaybackPresentation()
     }
     updateOverlayGeometry();
     if (m_overlay) {
+#ifdef WILIWILI_ENABLE_E7_MMF_BARE_WINDOW_DIAGNOSTIC
+        // Keep the overlay absent for this hardware-composition experiment.
+        // Its timer then returns while hidden, so it also performs no video
+        // position sampling or ARGB repaint work during MMF playback.
+        m_overlay->hide();
+        qDebug() << "WW:E7_MMF_BARE_WINDOW_OVERLAY_HIDDEN"
+                 << "presentation";
+#else
         m_overlay->show();
         m_overlay->prepareNativeWindow();
         m_overlay->raise();
+#endif
     }
     requestPlayerPlatformForeground();
     m_startTimerId = startTimer(180);
@@ -2742,12 +3035,25 @@ void VideoPlayerWidget::recreateMediaPlayer(bool streamPlayback)
                   << static_cast<void *>(m_player)
                   << "native-no-rotation";
     } else {
+        // Production binds MMF to a persistent native child.  E7 reports
+        // audio with a black MMF image for a file that the system player can
+        // render, so this opt-in diagnostic uses the already-visible player
+        // top-level RWindow and removes that child composition layer.
+#ifdef WILIWILI_ENABLE_E7_MMF_ROOT_WINDOW_DIAGNOSTIC
+        m_player = new VideoPlaybackBackend(this);
+#else
         m_player = new VideoPlaybackBackend(m_videoWidget);
+#endif
         qDebug() << "WW:PLAYER_BACKEND_NEW"
                   << static_cast<void *>(m_player)
-                  << "native-no-rotation";
+                  << "native-no-rotation"
+#ifdef WILIWILI_ENABLE_E7_MMF_ROOT_WINDOW_DIAGNOSTIC
+                  << "E7_MMF_ROOT_WINDOW"
+#endif
+                  ;
     }
     m_player->setNativeVideoEnabled(true);
+    m_player->setVolume(m_volume);
     m_streamPlaybackMode = streamPlayback;
     qDebug() << "WW:PLAYER_BACKEND_NATIVE"
              << (streamPlayback ? 1 : 0)
@@ -2791,10 +3097,316 @@ void VideoPlayerWidget::scheduleSourceAt(
              << delayMilliseconds << m_sourcePass;
 }
 
+int VideoPlayerWidget::nextLiveFlvSourceIndex(int startIndex) const
+{
+    int index;
+    for (index = qMax(0, startIndex); index < m_sourceUrls.size(); ++index) {
+        if (QUrl(m_sourceUrls.at(index)).path().toLower().endsWith(
+                QString::fromLatin1(".flv"))) {
+            return index;
+        }
+    }
+    return -1;
+}
+
+void VideoPlayerWidget::startLiveFlvDemuxFallback(int sourceIndex)
+{
+    if (m_closing || !m_isLive || !m_liveFlvDemuxer ||
+        sourceIndex < 0 || sourceIndex >= m_sourceUrls.size() ||
+        !QUrl(m_sourceUrls.at(sourceIndex)).path().toLower().endsWith(
+            QString::fromLatin1(".flv"))) {
+        return;
+    }
+
+    cancelLocalDownloadFallback(true);
+    m_liveFlvDemuxer->reset();
+    m_liveFlvPendingUnits.clear();
+    m_liveFlvPendingTimes.clear();
+    m_liveFlvPendingPresentationTimes.clear();
+    m_liveFlvAudioBytes = 0;
+    m_liveFlvRedirectCount = 0;
+    m_downloadSourceIndex = sourceIndex;
+    m_downloadBytes = 0;
+    m_downloadTotalBytes = 0;
+    m_localFallbackAttempted = true;
+    m_liveFlvDemuxActive = true;
+    m_liveFlvAudioOpen = false;
+    m_liveFlvVideoStarted = false;
+    m_softwareVideoRouteSelected = true;
+
+    QDir().mkpath(QDir::tempPath());
+    m_downloadPath = QDir::tempPath() +
+        QString::fromLatin1("/wiliwili_live_audio.aac");
+    QFile::remove(m_downloadPath);
+    m_downloadFile = new LocalDownloadWriter;
+    if (!m_downloadFile->open(m_downloadPath)) {
+        delete m_downloadFile;
+        m_downloadFile = 0;
+        m_liveFlvDemuxActive = false;
+        m_policyRouteFailed = true;
+        qDebug() << "WW:LIVE_FLV_AUDIO_FILE_ERROR" << m_downloadPath;
+        if (m_overlay)
+            m_overlay->update();
+        return;
+    }
+
+    QNetworkRequest request(QUrl(m_sourceUrls.at(sourceIndex)));
+    request.setRawHeader(
+        "User-Agent",
+        "Mozilla/5.0 (Symbian/3; Nokia603) NIKINIKI/"
+        WILIWILI_SYMBIAN_VERSION_STR);
+    request.setRawHeader("Referer", m_referer.toUtf8());
+    request.setRawHeader("Origin", "https://www.bilibili.com");
+    if (!m_cookieHeader.isEmpty())
+        request.setRawHeader("Cookie", m_cookieHeader);
+    m_downloadReply = m_downloadManager->get(request);
+    qDebug() << "WW:LIVE_FLV_DEMUX_BEGIN"
+             << (sourceIndex + 1) << m_sourceUrls.size()
+             << m_sourceUrls.at(sourceIndex).startsWith(
+                    QString::fromLatin1("https://"));
+    if (m_overlay)
+        m_overlay->update();
+}
+
+void VideoPlayerWidget::startLiveFlvAudioClock()
+{
+    if (!m_liveFlvDemuxActive || m_liveFlvAudioOpen || !m_downloadFile ||
+        m_liveFlvAudioBytes < KLiveAacStartBytes || !m_player)
+        return;
+    if (!m_downloadFile->flush()) {
+        retryLiveFlvDemuxFallback("audio-flush");
+        return;
+    }
+
+    // The failed remote FLV controller and any decoder probe are released
+    // before MMF selects its ordinary local AAC controller.  The writer keeps
+    // the same read/write sharing mode already proven on Nokia 603.
+    recreateMediaPlayer(false);
+    m_player->setNativeVideoEnabled(false);
+    m_player->setMedia(QMediaContent(
+        QUrl::fromLocalFile(m_downloadPath)));
+    m_player->play();
+    m_liveFlvAudioOpen = true;
+    m_localPlaybackActive = true;
+    m_lastReportedError = -1;
+    qDebug() << "WW:LIVE_FLV_AAC_OPEN"
+             << m_liveFlvAudioBytes << m_downloadPath;
+    if (m_overlay)
+        m_overlay->update();
+}
+
+void VideoPlayerWidget::startLiveFlvVideoIfReady()
+{
+    if (!m_liveFlvDemuxActive || !m_liveFlvAudioOpen || !m_player ||
+        m_player->mediaStatus() != VideoPlaybackBackend::LoadedMedia)
+        return;
+
+    m_player->setNativeVideoEnabled(false);
+    if (!m_liveFlvVideoStarted) {
+        if (m_liveFlvPendingUnits.size() < KLiveVideoStartUnits)
+            return;
+        m_player->setAvcHardwareYuv420OutputEnabled(false);
+        if (!m_player->startAvcHardwarePlayback(
+                m_liveFlvPendingUnits,
+                m_liveFlvPendingTimes,
+                m_liveFlvPendingPresentationTimes,
+                m_liveFlvDemuxer->width(),
+                m_liveFlvDemuxer->height())) {
+            qDebug() << "WW:LIVE_FLV_VIDEO_START_ERROR"
+                     << m_player->avcHardwareError();
+            retryLiveFlvDemuxFallback("video-start");
+            return;
+        }
+        qDebug() << "WW:LIVE_FLV_VIDEO_START"
+                 << m_liveFlvPendingUnits.size()
+                 << m_liveFlvDemuxer->width()
+                 << m_liveFlvDemuxer->height();
+        m_liveFlvPendingUnits.clear();
+        m_liveFlvPendingTimes.clear();
+        m_liveFlvPendingPresentationTimes.clear();
+        m_liveFlvVideoStarted = true;
+        m_avcProbeStage = 3;
+        m_glesYuvActive = false;
+        if (m_overlay) {
+            m_overlay->sourceChanged();
+            m_overlay->setFrameInterval(
+                KOverlayFrameIntervalMilliseconds);
+            m_overlay->show();
+            m_overlay->raise();
+        }
+        if (m_softVideoSurface)
+            m_softVideoSurface->setGeometry(rect());
+        qDebug() << "WW:FFMPEG_SOFT_NATIVE_SURFACE_PENDING"
+                 << (m_softVideoSurface
+                     ? m_softVideoSurface->geometry() : QRect())
+                 << "live-overlay-above";
+        return;
+    }
+
+    if (!m_liveFlvPendingUnits.isEmpty() &&
+        m_player->avcHardwareBufferedUnitCount() <
+            KAvcProbePrefetchThresholdUnits) {
+        if (!m_player->appendAvcHardwarePlayback(
+                m_liveFlvPendingUnits,
+                m_liveFlvPendingTimes,
+                m_liveFlvPendingPresentationTimes)) {
+            qDebug() << "WW:LIVE_FLV_VIDEO_APPEND_ERROR"
+                     << m_player->avcHardwareError();
+            retryLiveFlvDemuxFallback("video-append");
+            return;
+        }
+        qDebug() << "WW:LIVE_FLV_VIDEO_APPEND"
+                 << m_liveFlvPendingUnits.size()
+                 << m_player->avcHardwareBufferedUnitCount();
+        m_liveFlvPendingUnits.clear();
+        m_liveFlvPendingTimes.clear();
+        m_liveFlvPendingPresentationTimes.clear();
+    }
+}
+
+void VideoPlayerWidget::retryLiveFlvDemuxFallback(const char *reason)
+{
+    if (!m_liveFlvDemuxActive)
+        return;
+    const int failedIndex = m_downloadSourceIndex;
+    const int nextIndex = nextLiveFlvSourceIndex(failedIndex + 1);
+    qDebug() << "WW:LIVE_FLV_DEMUX_FAILED"
+             << reason << (failedIndex + 1) << m_downloadBytes
+             << m_liveFlvAudioBytes
+             << m_liveFlvPendingUnits.size();
+    cancelLocalDownloadFallback(true);
+    if (nextIndex >= 0) {
+        qDebug() << "WW:LIVE_FLV_DEMUX_RETRY"
+                 << (nextIndex + 1) << m_sourceUrls.size();
+        startLiveFlvDemuxFallback(nextIndex);
+    } else {
+        m_localFallbackAttempted = true;
+        m_policyRouteFailed = true;
+        qDebug() << "WW:LIVE_FLV_DEMUX_EXHAUSTED"
+                 << (failedIndex + 1) << m_sourceUrls.size();
+        if (m_overlay)
+            m_overlay->update();
+    }
+}
+
+void VideoPlayerWidget::pollLiveFlvDemuxFallback()
+{
+    if (!m_liveFlvDemuxActive || !m_downloadReply ||
+        !m_downloadFile || !m_liveFlvDemuxer)
+        return;
+
+    const QByteArray available = m_downloadReply->readAll();
+    if (!available.isEmpty()) {
+        QVector<QByteArray> units;
+        QVector<qint64> times;
+        QVector<qint64> presentationTimes;
+        QByteArray audio;
+        QString parseError;
+        const bool hadVideoConfig =
+            m_liveFlvDemuxer->hasVideoConfiguration();
+        const bool hadAudioConfig =
+            m_liveFlvDemuxer->hasAudioConfiguration();
+        if (!m_liveFlvDemuxer->append(
+                available, &units, &times,
+                &presentationTimes, &audio, &parseError)) {
+            qDebug() << "WW:LIVE_FLV_PARSE_ERROR" << parseError;
+            retryLiveFlvDemuxFallback("parse");
+            return;
+        }
+        m_downloadBytes += available.size();
+        if (!audio.isEmpty()) {
+            const qint64 written = m_downloadFile->write(audio);
+            if (written != audio.size()) {
+                qDebug() << "WW:LIVE_FLV_AUDIO_WRITE_ERROR"
+                         << written << audio.size();
+                retryLiveFlvDemuxFallback("audio-write");
+                return;
+            }
+            m_liveFlvAudioBytes += written;
+            if (m_liveFlvAudioBytes > KLiveAacMaximumBytes) {
+                retryLiveFlvDemuxFallback("audio-file-limit");
+                return;
+            }
+            if (m_liveFlvAudioOpen && !m_downloadFile->flush()) {
+                retryLiveFlvDemuxFallback("audio-growing-flush");
+                return;
+            }
+        }
+        m_liveFlvPendingUnits += units;
+        m_liveFlvPendingTimes += times;
+        m_liveFlvPendingPresentationTimes += presentationTimes;
+        if (!hadVideoConfig &&
+            m_liveFlvDemuxer->hasVideoConfiguration()) {
+            qDebug() << "WW:LIVE_FLV_AVC_CONFIG"
+                     << m_liveFlvDemuxer->width()
+                     << m_liveFlvDemuxer->height();
+        }
+        if (!hadAudioConfig &&
+            m_liveFlvDemuxer->hasAudioConfiguration()) {
+            qDebug() << "WW:LIVE_FLV_AAC_CONFIG"
+                     << m_liveFlvDemuxer->audioSampleRate()
+                     << m_liveFlvDemuxer->audioChannels();
+        }
+        if (m_liveFlvPendingUnits.size() >
+            KLiveVideoPendingMaximumUnits) {
+            retryLiveFlvDemuxFallback("video-queue-overflow");
+            return;
+        }
+    }
+
+    startLiveFlvAudioClock();
+    startLiveFlvVideoIfReady();
+    if (!m_liveFlvDemuxActive || !m_downloadReply)
+        return;
+    if (!m_downloadReply->isFinished()) {
+        if (m_overlay)
+            m_overlay->update();
+        return;
+    }
+
+    const int status = m_downloadReply->attribute(
+        QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    const QVariant redirect = m_downloadReply->attribute(
+        QNetworkRequest::RedirectionTargetAttribute);
+    if (redirect.isValid() && m_downloadBytes == 0 &&
+        m_liveFlvRedirectCount < 3) {
+        const QUrl redirected = m_downloadReply->url().resolved(
+            redirect.toUrl());
+        m_downloadReply->deleteLater();
+        m_downloadReply = 0;
+        ++m_liveFlvRedirectCount;
+        QNetworkRequest request(redirected);
+        request.setRawHeader(
+            "User-Agent",
+            "Mozilla/5.0 (Symbian/3; Nokia603) NIKINIKI/"
+            WILIWILI_SYMBIAN_VERSION_STR);
+        request.setRawHeader("Referer", m_referer.toUtf8());
+        request.setRawHeader("Origin", "https://www.bilibili.com");
+        if (!m_cookieHeader.isEmpty())
+            request.setRawHeader("Cookie", m_cookieHeader);
+        m_downloadReply = m_downloadManager->get(request);
+        qDebug() << "WW:LIVE_FLV_REDIRECT"
+                 << status << m_liveFlvRedirectCount
+                 << redirected.scheme();
+        return;
+    }
+
+    const int networkError = static_cast<int>(m_downloadReply->error());
+    const QString networkText = m_downloadReply->errorString();
+    qDebug() << "WW:LIVE_FLV_NETWORK_END"
+             << status << networkError << networkText
+             << m_downloadBytes;
+    retryLiveFlvDemuxFallback("network-end");
+}
+
 void VideoPlayerWidget::startLocalDownloadFallback(
     int sourceIndex, bool openWhileDownloading)
 {
-    if (m_closing || m_isLive || sourceIndex < 0 ||
+    const bool liveFlv = m_isLive && sourceIndex >= 0 &&
+        sourceIndex < m_sourceUrls.size() &&
+        QUrl(m_sourceUrls.at(sourceIndex)).path().toLower().endsWith(
+            QString::fromLatin1(".flv"));
+    if (m_closing || (m_isLive && !liveFlv) || sourceIndex < 0 ||
         sourceIndex >= m_sourceUrls.size()) {
         return;
     }
@@ -2807,7 +3419,9 @@ void VideoPlayerWidget::startLocalDownloadFallback(
     if (m_downloadPath.isEmpty()) {
         QDir().mkpath(QDir::tempPath());
         m_downloadPath = QDir::tempPath() +
-            QString::fromLatin1("/wiliwili_player_cache.mp4");
+            (liveFlv
+                ? QString::fromLatin1("/wiliwili_live_cache.flv")
+                : QString::fromLatin1("/wiliwili_player_cache.mp4"));
     }
     QFile::remove(m_downloadPath);
     m_downloadFile = new LocalDownloadWriter;
@@ -2862,6 +3476,10 @@ void VideoPlayerWidget::openLocalDownloadForPlayback(const char *reason)
 
 void VideoPlayerWidget::pollLocalDownloadFallback()
 {
+    if (m_liveFlvDemuxActive) {
+        pollLiveFlvDemuxFallback();
+        return;
+    }
     if (!m_downloadReply || !m_downloadFile)
         return;
     const QByteArray available = m_downloadReply->readAll();
@@ -2888,7 +3506,8 @@ void VideoPlayerWidget::pollLocalDownloadFallback()
         }
     }
 
-    const qint64 maximumBytes = 96LL * 1024LL * 1024LL;
+    const qint64 maximumBytes = (m_isLive ? 192LL : 96LL) *
+        1024LL * 1024LL;
     const QVariant lengthHeader = m_downloadReply->header(
         QNetworkRequest::ContentLengthHeader);
     const qint64 declaredBytes = lengthHeader.isValid()
@@ -2935,11 +3554,17 @@ void VideoPlayerWidget::pollLocalDownloadFallback()
             m_localPlaybackActive = false;
         }
         QFile::remove(m_downloadPath);
-        if (m_downloadSourceIndex + 1 < m_sourceUrls.size()) {
-            startLocalDownloadFallback(
-                m_downloadSourceIndex + 1, retryProgressively);
+        const int nextSourceIndex = m_isLive
+            ? nextLiveFlvSourceIndex(m_downloadSourceIndex + 1)
+            : m_downloadSourceIndex + 1;
+        if (nextSourceIndex >= 0 && nextSourceIndex < m_sourceUrls.size()) {
+            qDebug() << "WW:PLAYER_LOCAL_RETRY"
+                     << (nextSourceIndex + 1) << m_sourceUrls.size();
+            startLocalDownloadFallback(nextSourceIndex, retryProgressively);
         } else {
             m_policyRouteFailed = true;
+            qDebug() << "WW:PLAYER_LOCAL_FALLBACK_EXHAUSTED"
+                     << m_downloadSourceIndex + 1 << m_sourceUrls.size();
             if (m_overlay)
                 m_overlay->update();
         }
@@ -2976,6 +3601,15 @@ void VideoPlayerWidget::cancelLocalDownloadFallback(bool removeFile)
     }
     m_openLocalWhileDownloading = false;
     m_localPlaybackActive = false;
+    m_liveFlvDemuxActive = false;
+    m_liveFlvAudioOpen = false;
+    m_liveFlvVideoStarted = false;
+    m_liveFlvAudioBytes = 0;
+    m_liveFlvPendingUnits.clear();
+    m_liveFlvPendingTimes.clear();
+    m_liveFlvPendingPresentationTimes.clear();
+    if (m_liveFlvDemuxer)
+        m_liveFlvDemuxer->reset();
 }
 
 void VideoPlayerWidget::startAvcHardwareProbeMetadata(int sourceIndex)
@@ -3186,13 +3820,27 @@ void VideoPlayerWidget::handOffAvcHardwareProbe(
     // The initial H.264 bytes were deliberately acquired before MMF opened
     // the same remote URL. Start MMF now so it can prepare AAC while the
     // decoder waits below for LoadedMedia.
-    if (resetDecoder)
+    if (resetDecoder) {
+#ifdef WILIWILI_ENABLE_E7_DEVVIDEO_MEMORY_SOLO_DIAGNOSTIC
+        // Hardware-resource control case: keep the range-fed AVC batch, but
+        // never open CVideoPlayerUtility2.  The deliberate absence of AAC is
+        // what lets InitComplete distinguish an MMF-held hardware resource
+        // from a public DevVideo memory-output limitation.
+        m_mmfSourceOpenDeferred = false;
+        qDebug() << "WW:E7_DEVVIDEO_MEMORY_SOLO_MMF_BYPASSED";
+#else
         openDeferredMmfSource("soft-prefetch-ready");
+#endif
+    }
 
     // MMF must finish Prepare before SetVideoEnabledL(false) can release its
     // native video track. Keep the batch while AAC initialization completes.
     if (resetDecoder &&
+#ifndef WILIWILI_ENABLE_E7_DEVVIDEO_MEMORY_SOLO_DIAGNOSTIC
         m_player->mediaStatus() != VideoPlaybackBackend::LoadedMedia) {
+#else
+        false) {
+#endif
         m_avcPendingUnits = accessUnits;
         m_avcPendingTimes = decodingTimesMilliseconds;
         m_avcPendingPresentationTimes = presentationTimesMilliseconds;
@@ -3288,6 +3936,14 @@ void VideoPlayerWidget::handOffAvcHardwareProbe(
 
 void VideoPlayerWidget::pollAvcHardwareProbe()
 {
+    // Live AVC units arrive from the incremental FLV demuxer rather than the
+    // finite MP4 Range reader.  Pump/present the same decoder, but never ask
+    // Mp4AvcProbeReader for a nonexistent next sample.
+    if (m_liveFlvDemuxActive) {
+        if (m_player && m_liveFlvVideoStarted)
+            m_player->pumpAvcHardwarePlayback();
+        return;
+    }
     if (m_avcProbeStage == 5 && m_player &&
         m_player->mediaStatus() == VideoPlaybackBackend::LoadedMedia &&
         !m_avcPendingUnits.isEmpty()) {
@@ -3458,8 +4114,14 @@ void VideoPlayerWidget::pollAvcHardwareProbe()
         // Auto mode submits the smallest legal header batch to the read-only
         // Broadcom preflight. Software-only skips that hardware decision and
         // immediately asks for a normal FFmpeg prefetch batch from this IDR.
+#ifdef WILIWILI_ENABLE_E7_DEVVIDEO_MEMORY_DIAGNOSTIC
+        // The diagnostic owns its own decoder session, so both Automatic and
+        // Hardware-only use the real header as that session's admission gate.
+        const bool headerPreflight = true;
+#else
         const bool headerPreflight =
             m_decoderMode == AutomaticDecoder;
+#endif
         if (!headerPreflight)
             m_softwareVideoRouteSelected = true;
         qDebug() << "WW:PLAYER_DECODER_ROUTE"
@@ -3505,6 +4167,20 @@ void VideoPlayerWidget::pollAvcHardwareProbe()
         m_avcHeaderPreflightPending = false;
         const bool resetDecoder = m_avcProbeResetDecoder;
         if (headerPreflight) {
+#ifdef WILIWILI_ENABLE_E7_DEVVIDEO_MEMORY_DIAGNOSTIC
+            // Do not make a throwaway DevVideo HeaderInformation call here.
+            // The next batch is delivered to the one decoder session that
+            // will itself parse the real SPS/PPS, ConfigureDecoderL(), and
+            // consume the subsequent access units.  This keeps the diagnosis
+            // independent of any state a separate temporary session might
+            // leave in the E7 multimedia stack.
+            qDebug() << "WW:E7_DEVVIDEO_MEMORY_SESSION_ROUTE"
+                     << "REAL_HEADER_CONFIGURE" << units.first().size();
+            m_softwareVideoRouteSelected = true;
+            requestAvcHardwareSampleBatch(
+                m_avcProbeFirstSample, true, false);
+            return;
+#else
             if (!m_player) {
                 qDebug() << "WW:DEVVIDEO_HEADER_PREFLIGHT_ROUTE"
                          << "MMF" << "no-player";
@@ -3533,6 +4209,7 @@ void VideoPlayerWidget::pollAvcHardwareProbe()
             requestAvcHardwareSampleBatch(
                 m_avcProbeFirstSample, true, false);
             return;
+#endif
         }
         m_avcProbeNextSample = m_avcProbeLastSampleExclusive;
         handOffAvcHardwareProbe(
@@ -3589,6 +4266,28 @@ void VideoPlayerWidget::togglePlayback()
     if (m_overlay)
         m_overlay->invalidatePositionCache();
     m_overlay->update();
+}
+
+void VideoPlayerWidget::adjustVolume(int delta)
+{
+    const int adjusted = qBound(0, m_volume + delta, 100);
+    if (adjusted != m_volume) {
+        m_volume = adjusted;
+        if (m_player)
+            m_player->setVolume(m_volume);
+        qDebug() << "WW:PLAYER_VOLUME" << m_volume;
+    }
+    if (m_overlay)
+        m_overlay->revealControls();
+}
+
+void VideoPlayerWidget::saveVolumePreference() const
+{
+    QSettings settings(
+        QSettings::IniFormat, QSettings::UserScope,
+        QString::fromLatin1("wiliwili"),
+        QString::fromLatin1("wiliwili_symbian"));
+    settings.setValue(QString::fromLatin1("player/volume"), m_volume);
 }
 
 void VideoPlayerWidget::seekBy(qint64 deltaMilliseconds)
@@ -3660,11 +4359,24 @@ QString VideoPlayerWidget::qualityLabel() const
 
 QString VideoPlayerWidget::playbackStatus() const
 {
-    if (m_policyRouteFailed)
+    if (m_policyRouteFailed) {
+        if (m_isLive)
+            return QString::fromLatin1("LIVEERR");
         return m_decoderMode == SoftwareOnlyDecoder
             ? QString::fromLatin1("SWERR")
             : QString::fromLatin1("DLERR");
+    }
     if (m_downloadReply) {
+        if (m_isLive &&
+            (m_openLocalWhileDownloading || m_liveFlvDemuxActive)) {
+            const qint64 buffered = m_liveFlvDemuxActive
+                ? m_liveFlvAudioBytes : m_downloadBytes;
+            const qint64 target = m_liveFlvDemuxActive
+                ? KLiveAacStartBytes : KOpenFileStreamingStartBytes;
+            return QString::fromLatin1("BUF%1%")
+                .arg(qBound(0, static_cast<int>(
+                    buffered * 100 / target), 100));
+        }
         if (m_downloadTotalBytes > 0) {
             return QString::fromLatin1("DL%1%")
                 .arg(qBound(0, static_cast<int>(
@@ -3718,6 +4430,7 @@ void VideoPlayerWidget::closePlayer()
 {
     if (m_closing)
         return;
+    saveVolumePreference();
 #ifdef WILIWILI_ENABLE_DEVVIDEO_DIRECT_PROBE
     if (m_directProbeActive) {
         if (m_directProbe)
@@ -3939,10 +4652,12 @@ void VideoPlayerWidget::keyPressEvent(QKeyEvent *event)
         seekBy(10000);
     } else if (event->key() == Qt::Key_Menu) {
         m_overlay->toggleQualityMenu();
-    } else if (event->key() == Qt::Key_Up && m_player) {
-        m_player->setVolume(qMin(100, m_player->volume() + 5));
-    } else if (event->key() == Qt::Key_Down && m_player) {
-        m_player->setVolume(qMax(0, m_player->volume() - 5));
+    } else if ((event->key() == Qt::Key_Up ||
+                event->key() == Qt::Key_VolumeUp) && m_player) {
+        adjustVolume(5);
+    } else if ((event->key() == Qt::Key_Down ||
+                event->key() == Qt::Key_VolumeDown) && m_player) {
+        adjustVolume(-5);
     } else if (event->key() == Qt::Key_Space ||
                event->key() == Qt::Key_Select ||
                event->key() == Qt::Key_Enter ||
@@ -4047,16 +4762,36 @@ void VideoPlayerWidget::timerEvent(QTimerEvent *event)
                 m_softVideoSurface->show();
                 m_softVideoSurface->raise();
             } else {
+#ifdef WILIWILI_ENABLE_E7_MMF_ROOT_WINDOW_DIAGNOSTIC
+                // The root-window diagnostic must leave this full-screen Qt
+                // native child hidden.  Showing it here after the delayed
+                // orientation start would cover MMF's root RWindow output and
+                // invalidate the experiment.
+                m_videoWidget->hide();
+                qDebug() << "WW:E7_MMF_ROOT_WINDOW_CHILD_HIDDEN"
+                         << m_videoWidget->geometry();
+#else
                 m_videoWidget->show();
                 m_videoWidget->winId();
+#endif
             }
             if (!m_player)
                 recreateMediaPlayer(true);
+#ifndef WILIWILI_ENABLE_E7_MMF_ROOT_WINDOW_DIAGNOSTIC
             if (!m_softVideoActive)
                 m_videoWidget->raise();
+#endif
+#ifdef WILIWILI_ENABLE_E7_MMF_BARE_WINDOW_DIAGNOSTIC
+            // Do not let the delayed media-start path resurrect the ARGB
+            // overlay after startPlaybackPresentation() hid it.
+            m_overlay->hide();
+            qDebug() << "WW:E7_MMF_BARE_WINDOW_OVERLAY_HIDDEN"
+                     << "media-start";
+#else
             m_overlay->show();
             m_overlay->prepareNativeWindow();
             m_overlay->raise();
+#endif
             requestPlayerPlatformForeground();
             if (surfaceWasReleased)
                 qDebug() << "WW:PLAYER_NATIVE_HOST_REBUILT"
@@ -4090,6 +4825,25 @@ void VideoPlayerWidget::timerEvent(QTimerEvent *event)
         m_lastReportedError = static_cast<int>(m_player->error());
         qDebug() << "WW:PLAYER_LOCAL_ERROR"
                  << m_lastReportedError << m_player->errorString();
+        if (m_liveFlvDemuxActive) {
+            retryLiveFlvDemuxFallback("mmf-audio");
+        } else if (m_isLive) {
+            const int failedSourceIndex = m_downloadSourceIndex;
+            const int nextSourceIndex = nextLiveFlvSourceIndex(
+                failedSourceIndex + 1);
+            cancelLocalDownloadFallback(true);
+            if (nextSourceIndex >= 0) {
+                qDebug() << "WW:PLAYER_LOCAL_RETRY"
+                         << (nextSourceIndex + 1) << m_sourceUrls.size();
+                startLocalDownloadFallback(nextSourceIndex, true);
+            } else {
+                m_policyRouteFailed = true;
+                qDebug() << "WW:PLAYER_LOCAL_FALLBACK_EXHAUSTED"
+                         << (failedSourceIndex + 1) << m_sourceUrls.size();
+                if (m_overlay)
+                    m_overlay->update();
+            }
+        }
     }
     if (isVisible() && m_player && !m_retryTimerId &&
         !m_downloadReply && !m_localPlaybackActive &&
@@ -4099,16 +4853,45 @@ void VideoPlayerWidget::timerEvent(QTimerEvent *event)
         qDebug() << "WW:PLAYER_ERROR"
                  << m_lastReportedError << m_player->errorString()
                  << (m_sourceIndex + 1) << m_sourceUrls.size();
-        if (m_sourceIndex + 1 < m_sourceUrls.size()) {
+        if (m_isLive && m_liveMimeVariant < 2) {
+            ++m_liveMimeVariant;
+            recreateMediaPlayer(true);
+            qDebug() << "WW:PLAYER_LIVE_MIME_FALLBACK"
+                     << m_liveMimeVariant << (m_sourceIndex + 1);
+            scheduleSourceAt(m_sourceIndex, 300);
+        } else if (m_isLive && !m_localFallbackAttempted &&
+                   nextLiveFlvSourceIndex(m_sourceIndex) == m_sourceIndex) {
+            // The Nokia 603 trace proves that explicit FLV MIME types are
+            // rejected by OpenUrlL and the sniffed URL reaches Prepare only
+            // to fail there. Do not repeat that firmware-level result across
+            // every CDN and protocol. Move forward once to on-device FLV
+            // demux; any subsequent CDN retries remain on that path.
+            qDebug() << "WW:PLAYER_LIVE_DEMUX_FALLBACK"
+                     << (m_sourceIndex + 1) << "after-direct";
+            startLiveFlvDemuxFallback(m_sourceIndex);
+        } else if (m_sourceIndex + 1 < m_sourceUrls.size()) {
+            m_liveMimeVariant = 0;
             scheduleSourceAt(m_sourceIndex + 1, 300);
-        } else if (m_sourcePass < 1 && !m_sourceUrls.isEmpty()) {
+        } else if (!m_isLive && m_sourcePass < 1 &&
+                   !m_sourceUrls.isEmpty()) {
             // CDN and the Belle media service are both observed to recover on
             // a later open. One bounded second pass handles that transient
             // case without leaving the player in an endless spinner.
             ++m_sourcePass;
+            m_liveMimeVariant = 0;
             recreateMediaPlayer(false);
             qDebug() << "WW:PLAYER_BACKEND_FALLBACK";
             scheduleSourceAt(0, 800);
+        } else if (!m_localFallbackAttempted && m_isLive) {
+            const int flvIndex = nextLiveFlvSourceIndex(0);
+            if (flvIndex >= 0) {
+                qDebug() << "WW:PLAYER_LIVE_DEMUX_FALLBACK"
+                         << (flvIndex + 1);
+                startLiveFlvDemuxFallback(flvIndex);
+            } else {
+                m_localFallbackAttempted = true;
+                qDebug() << "WW:PLAYER_LIVE_DEMUX_UNAVAILABLE";
+            }
         } else if (!m_localFallbackAttempted && !m_isLive) {
             qDebug() << "WW:PLAYER_SOURCES_EXHAUSTED"
                      << m_sourceUrls.size() << m_sourcePass;

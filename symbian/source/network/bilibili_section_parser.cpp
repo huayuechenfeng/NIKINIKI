@@ -211,28 +211,35 @@ static void parseDynamicModuleToken(
         result->description = cleanSectionText(firstString4(
             dynamic,
             "$.desc.text",
-            "$.description",
-            "$.major.archive.desc",
-            "$.major.opus.summary"));
+            "$.major.opus.summary.text",
+            "$.major.article.desc",
+            "$.major.archive.desc"));
+        if (result->description.isEmpty())
+            result->description = cleanSectionText(firstString4(
+                dynamic,
+                "$.major.opus.summary",
+                "$.description",
+                "$.dyn_archive.desc",
+                "$.dyn_forward.item.modules.module_desc.text"));
         result->mediaTitle = cleanSectionText(firstString4(
             dynamic,
             "$.major.archive.title",
             "$.major.opus.title",
             "$.major.article.title",
-            "$.major.live_rcmd.title"));
+            "$.dyn_archive.title"));
         if (result->mediaTitle.isEmpty())
             result->mediaTitle = cleanSectionText(firstString4(
                 dynamic,
+                "$.major.live_rcmd.title",
                 "$.major.live_rcmd.content.title",
                 "$.major.live_rcmd.card_info.live_play_info.title",
-                "$.major.live.card_info.live_play_info.title",
-                "$.major.live.title"));
+                "$.dyn_live_rcmd.card_info.live_play_info.title"));
         const QString bvid = cleanSectionText(firstString4(
             dynamic,
             "$.major.archive.bvid",
             "$.major.pgc.bvid",
             "$.major.ugc_season.bvid",
-            "$.bvid"));
+            "$.dyn_archive.bvid"));
         if (!bvid.isEmpty()) {
             result->kind = VideoContentItem;
             result->id = bvid;
@@ -247,17 +254,52 @@ static void parseDynamicModuleToken(
         if (result->mediaPicture.isEmpty())
             result->mediaPicture = firstString4(
                 dynamic,
+                "$.dyn_draw.items[0].src",
+                "$.dyn_archive.cover",
+                "$.major.opus.pics[0].src",
+                "$.major.draw.items[0].url");
+        if (result->mediaPicture.isEmpty())
+            result->mediaPicture = firstString4(
+                dynamic,
                 "$.major.live_rcmd.content.cover",
                 "$.major.live_rcmd.cover",
-                "$.major.live.cover",
-                "$.major.live_rcmd.card_info.live_play_info.cover");
+                "$.major.live_rcmd.card_info.live_play_info.cover",
+                "$.dyn_live_rcmd.card_info.live_play_info.cover");
         if (result->mediaPicture.isEmpty())
             result->mediaPicture = sectionJsonString(dynamic, "$.pic");
-        if (result->badge.isEmpty() && !result->mediaPicture.isEmpty())
-            result->badge = QString::fromUtf8("图文");
+        double dimension = 0.0;
+        if (sectionJsonNumber(
+                dynamic, "$.major.opus.pics[0].width", &dimension) ||
+            sectionJsonNumber(
+                dynamic, "$.major.draw.items[0].width", &dimension) ||
+            sectionJsonNumber(
+                dynamic, "$.dyn_draw.items[0].width", &dimension)) {
+            result->mediaWidth = static_cast<int>(dimension);
+        }
+        if (sectionJsonNumber(
+                dynamic, "$.major.opus.pics[0].height", &dimension) ||
+            sectionJsonNumber(
+                dynamic, "$.major.draw.items[0].height", &dimension) ||
+            sectionJsonNumber(
+                dynamic, "$.dyn_draw.items[0].height", &dimension)) {
+            result->mediaHeight = static_cast<int>(dimension);
+        }
+        if (result->kind == VideoContentItem &&
+            (result->mediaWidth <= 0 || result->mediaHeight <= 0)) {
+            result->mediaWidth = 16;
+            result->mediaHeight = 9;
+        }
+        const QString dynamicType = firstString(
+            dynamic, "$.major.type", "$.type", 0).toLower();
         if (result->badge.isEmpty() &&
-            firstString(dynamic, "$.major.type", "$.type", 0)
-                .toLower().contains(QString::fromLatin1("live")))
+            (dynamicType.contains(QString::fromLatin1("draw")) ||
+             dynamicType.contains(QString::fromLatin1("opus")) ||
+             dynamicType.contains(QString::fromLatin1("article")) ||
+             !result->mediaPicture.isEmpty())) {
+            result->badge = QString::fromUtf8("图文");
+        }
+        if (result->badge.isEmpty() &&
+            dynamicType.contains(QString::fromLatin1("live")))
             result->badge = QString::fromUtf8("直播");
         if (result->badge.isEmpty() && !result->mediaTitle.isEmpty())
             result->badge = QString::fromUtf8("图文");
@@ -276,6 +318,16 @@ static void parseDynamicModuleToken(
         result->count = static_cast<int>(number);
     if (stat.buf && sectionJsonNumber(stat, "$.comment.count", &number))
         result->replyCount = static_cast<int>(number);
+    if (stat.buf && result->commentId == 0) {
+        const QString commentId = sectionJsonScalarText(
+            stat, "$.comment.comment_id");
+        if (!commentId.isEmpty())
+            result->commentId = commentId.toULongLong();
+    }
+    if (stat.buf && result->commentType == 0 &&
+        sectionJsonNumber(stat, "$.comment.comment_type", &number)) {
+        result->commentType = static_cast<int>(number);
+    }
 }
 
 static void parseDynamicModules(
@@ -353,6 +405,8 @@ bool BilibiliSectionParser::parseDynamic(
            (offset = mg_json_next(list, offset, 0, &item)) != 0) {
         ContentItemCompat result;
         result.kind = TextContentItem;
+        result.sourceId = cleanSectionText(firstString(
+            item, "$.id_str", "$.id", 0));
         parseDynamicModules(
             mg_json_get_tok(item, "$.modules"), &result);
         if (result.title.isEmpty())
@@ -392,6 +446,16 @@ bool BilibiliSectionParser::parseDynamic(
         if (time.isEmpty())
             time = result.subtitle;
         double number = 0.0;
+        const QString commentIdText = sectionJsonScalarText(
+            item, "$.basic.comment_id_str");
+        if (!commentIdText.isEmpty())
+            result.commentId = commentIdText.toULongLong();
+        if (result.commentId == 0 &&
+            sectionJsonNumber(item, "$.basic.comment_id", &number)) {
+            result.commentId = static_cast<quint64>(number);
+        }
+        if (sectionJsonNumber(item, "$.basic.comment_type", &number))
+            result.commentType = static_cast<int>(number);
         if (sectionJsonNumber(
                 item, "$.modules.module_author.pub_ts", &number) ||
             sectionJsonNumber(item, "$.module_author.pub_ts", &number) ||
@@ -470,13 +534,109 @@ bool BilibiliSectionParser::parseDynamic(
         if (sectionJsonNumber(item, "$.id", &number))
             result.numericId = static_cast<quint64>(number);
         if (result.id.isEmpty()) {
-            const QString dynamicId = cleanSectionText(firstString(
-                item, "$.id_str", "$.id", "$.basic.comment_id"));
+            const QString dynamicId = result.sourceId.isEmpty()
+                ? cleanSectionText(firstString(
+                    item, "$.id_str", "$.id", "$.basic.comment_id"))
+                : result.sourceId;
             if (!dynamicId.isEmpty())
                 result.id = QString::fromLatin1("dynamic:") + dynamicId;
         }
         appendSectionItem(items, result);
     }
+    return true;
+}
+
+bool BilibiliSectionParser::parseDynamicDetail(
+    const QByteArray &body,
+    ContentItemCompat *item,
+    int *apiCode,
+    QString *errorText)
+{
+    if (!item)
+        return false;
+    *item = ContentItemCompat();
+    struct mg_str root;
+    if (!sectionRoot(body, &root, apiCode, errorText))
+        return false;
+    struct mg_str dynamicItem = mg_json_get_tok(root, "$.data.item");
+    if (!dynamicItem.buf || dynamicItem.len < 2 ||
+        dynamicItem.buf[0] != '{') {
+        dynamicItem = mg_json_get_tok(root, "$.data");
+    }
+    if (!dynamicItem.buf || dynamicItem.len < 2 ||
+        dynamicItem.buf[0] != '{') {
+        if (errorText)
+            *errorText = QString::fromLatin1("missing dynamic detail item");
+        return false;
+    }
+
+    ContentItemCompat result;
+    result.kind = TextContentItem;
+    result.sourceId = cleanSectionText(firstString(
+        dynamicItem, "$.id_str", "$.id", 0));
+    parseDynamicModules(
+        mg_json_get_tok(dynamicItem, "$.modules"), &result);
+    if (result.title.isEmpty())
+        result.title = cleanSectionText(firstString4(
+            dynamicItem,
+            "$.modules.module_author.name",
+            "$.module_author.name",
+            "$.owner.name",
+            "$.author.name"));
+    if (result.title.isEmpty())
+        result.title = QString::fromUtf8("动态用户");
+    if (result.picture.isEmpty())
+        result.picture = firstString4(
+            dynamicItem,
+            "$.modules.module_author.face",
+            "$.module_author.face",
+            "$.owner.face",
+            "$.author.face");
+
+    QString time = result.subtitle;
+    double number = 0.0;
+    const QString commentIdText = sectionJsonScalarText(
+        dynamicItem, "$.basic.comment_id_str");
+    if (!commentIdText.isEmpty())
+        result.commentId = commentIdText.toULongLong();
+    if (result.commentId == 0 && sectionJsonNumber(
+            dynamicItem, "$.basic.comment_id", &number)) {
+        result.commentId = static_cast<quint64>(number);
+    }
+    if (result.commentType == 0 && sectionJsonNumber(
+            dynamicItem, "$.basic.comment_type", &number)) {
+        result.commentType = static_cast<int>(number);
+    }
+    if (sectionJsonNumber(
+            dynamicItem, "$.modules.module_author.pub_ts", &number) ||
+        sectionJsonNumber(
+            dynamicItem, "$.module_author.pub_ts", &number)) {
+        result.timestamp = static_cast<quint64>(number);
+        if (time.isEmpty())
+            time = sectionTimeText(result.timestamp);
+    }
+
+    if (result.description.isEmpty())
+        result.description = result.mediaTitle;
+    if (result.mediaTitle.isEmpty() && !result.description.isEmpty())
+        result.mediaTitle = result.description;
+    if (result.badge.isEmpty())
+        result.badge = result.mediaPicture.isEmpty()
+            ? QString::fromUtf8("动态") : QString::fromUtf8("图文");
+    result.subtitle = time.isEmpty()
+        ? result.badge : time + QString::fromUtf8(" · ") + result.badge;
+    if (result.id.isEmpty()) {
+        const QString dynamicId = result.sourceId.isEmpty()
+            ? sectionJsonScalarText(dynamicItem, "$.id")
+            : result.sourceId;
+        if (!dynamicId.isEmpty())
+            result.id = QString::fromLatin1("dynamic:") + dynamicId;
+    }
+    if (result.sourceId.isEmpty() && result.id.startsWith(
+            QString::fromLatin1("dynamic:"))) {
+        result.sourceId = result.id.mid(8);
+    }
+    *item = result;
     return true;
 }
 

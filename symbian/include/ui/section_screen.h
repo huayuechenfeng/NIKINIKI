@@ -62,6 +62,11 @@ public:
     bool aboutVisible() const;
     void setItems(const QVector<ContentItemCompat> &items);
     void appendItems(const QVector<ContentItemCompat> &items);
+    void setItemImage(
+        int index, int imageHandle,
+        int imageWidth = 0, int imageHeight = 0);
+    int itemImage(int index) const;
+    const QVector<ContentItemCompat> &items() const;
     QString itemId(int index) const;
     QString itemTitle(int index) const;
     QString itemSubtitle(int index) const;
@@ -119,11 +124,16 @@ private:
     void drawDynamicCard(
         NVGcontext *context,
         const ContentItemCompat &item,
+        int index,
         const QRectF &frame) const;
     void drawMessageRow(
         NVGcontext *context,
         const ContentItemCompat &item,
         const QRectF &frame) const;
+    int wrappedLineCount(
+        NVGcontext *context, const QString &text,
+        float width, float size) const;
+    void updateDynamicItemHeights(NVGcontext *context);
     float itemHeight(int index) const;
     QRectF itemFrame(int index) const;
 
@@ -164,6 +174,9 @@ private:
     PreferencePage m_preferencePage;
     bool m_aboutVisible;
     QVector<ContentItemCompat> m_items;
+    QVector<int> m_itemImages;
+    QVector<float> m_itemHeights;
+    float m_dynamicHeightWidth;
 };
 
 } // namespace wiliwili

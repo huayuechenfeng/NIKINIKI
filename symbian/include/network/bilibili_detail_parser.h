@@ -3,6 +3,7 @@
 
 #include <QtCore/QByteArray>
 #include <QtCore/QString>
+#include <QtCore/QVector>
 
 #include "model/video_detail.h"
 
@@ -15,7 +16,8 @@ public:
         const QByteArray &body,
         VideoDetailCompat *detail,
         int *apiCode,
-        QString *errorText);
+        QString *errorText,
+        QVector<RecommendVideoResultCompat> *related = 0);
 };
 
 } // namespace wiliwili

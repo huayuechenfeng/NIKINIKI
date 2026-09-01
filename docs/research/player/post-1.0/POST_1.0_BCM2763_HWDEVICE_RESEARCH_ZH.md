@@ -1,8 +1,13 @@
 # 1.0 后研究档案：BCM2763 与 “BCM2727” DevVideo HwDevice
 
 > 建档日期：2026-08-26  
-> 优先级：1.0 公开发布后 / 非当前开发任务  
+> 优先级：Archived historical evidence；H.264 ref7 支线已结题
 > 性质：固件与驱动考古假设，不是当前播放器实现依据
+
+最终结果统一见
+[H.264 ref7 硬件解码结题报告](../H264_REF7_HARDWARE_DECODE_FINAL_REPORT_ZH.md)；本文只保存早期线索和
+固件审计边界。当时的阶段门和 probe 契约保存在已归档的
+[研究计划](H264_HARDWARE_DECODE_RESEARCH_PLAN_ZH.md)。
 
 相关的两条后续研究证据分别归档于：
 

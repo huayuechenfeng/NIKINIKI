@@ -4,7 +4,7 @@
 #include <QtCore/QtGlobal>
 
 #ifndef WILIWILI_SYMBIAN_VERSION_STR
-#define WILIWILI_SYMBIAN_VERSION_STR "1.1.0"
+#define WILIWILI_SYMBIAN_VERSION_STR "1.2.0"
 #endif
 
 namespace wiliwili {
@@ -39,7 +39,8 @@ SectionScreen::SectionScreen()
       m_lastWidth(360.0f), m_lastHeight(640.0f), m_itemTop(76.0f),
       m_messageTab(0), m_imageLoadingEnabled(true),
       m_playbackMode(0), m_decoderMode(0),
-      m_preferencePage(NoPreferencePage), m_aboutVisible(false)
+      m_preferencePage(NoPreferencePage), m_aboutVisible(false),
+      m_dynamicHeightWidth(0.0f)
 {
     m_status = QString::fromLatin1("READY");
 }
@@ -107,9 +108,17 @@ bool SectionScreen::aboutVisible() const
 void SectionScreen::setItems(const QVector<ContentItemCompat> &items)
 {
     m_items = items;
+    m_itemImages.clear();
+    m_itemHeights.clear();
+    int index;
+    for (index = 0; index < m_items.size(); ++index) {
+        m_itemImages.append(-1);
+        m_itemHeights.append(122.0f);
+    }
     m_scroll = 0.0f;
     m_pullDistance = 0.0f;
     m_loadMoreArmed = false;
+    m_dynamicHeightWidth = 0.0f;
 }
 
 void SectionScreen::appendItems(const QVector<ContentItemCompat> &items)
@@ -133,10 +142,39 @@ void SectionScreen::appendItems(const QVector<ContentItemCompat> &items)
                 break;
             }
         }
-        if (!duplicate)
+        if (!duplicate) {
             m_items.append(candidate);
+            m_itemImages.append(-1);
+            m_itemHeights.append(122.0f);
+        }
     }
     m_loadMoreArmed = false;
+    m_dynamicHeightWidth = 0.0f;
+}
+
+void SectionScreen::setItemImage(
+    int index, int imageHandle,
+    int imageWidth, int imageHeight)
+{
+    if (index >= 0 && index < m_itemImages.size()) {
+        m_itemImages[index] = imageHandle;
+        if (index < m_items.size() && imageWidth > 0 && imageHeight > 0) {
+            m_items[index].mediaWidth = imageWidth;
+            m_items[index].mediaHeight = imageHeight;
+            m_dynamicHeightWidth = 0.0f;
+        }
+    }
+}
+
+int SectionScreen::itemImage(int index) const
+{
+    return index >= 0 && index < m_itemImages.size()
+        ? m_itemImages.at(index) : -1;
+}
+
+const QVector<ContentItemCompat> &SectionScreen::items() const
+{
+    return m_items;
 }
 
 QString SectionScreen::itemId(int index) const
@@ -183,10 +221,13 @@ int SectionScreen::itemIndex(Action action)
 void SectionScreen::clearItems()
 {
     m_items.clear();
+    m_itemImages.clear();
+    m_itemHeights.clear();
     m_scroll = 0.0f;
     m_pullDistance = 0.0f;
     m_canLoadMore = false;
     m_loadMoreArmed = false;
+    m_dynamicHeightWidth = 0.0f;
 }
 
 void SectionScreen::initialize(int fontId)
@@ -201,6 +242,7 @@ void SectionScreen::setSection(NavigationRail::Section section)
     m_scroll = 0.0f;
     m_pullDistance = 0.0f;
     m_loadMoreArmed = false;
+    m_dynamicHeightWidth = 0.0f;
 }
 
 void SectionScreen::drawText(
@@ -243,7 +285,7 @@ void SectionScreen::drawWrappedText(
     nvgTextLineHeight(context, 1.12f);
     nvgFillColor(context, color);
     int line = 0;
-    while (start < end && line < maxLines) {
+    while (start < end && (maxLines <= 0 || line < maxLines)) {
         NVGtextRow row;
         if (nvgTextBreakLines(context, start, end, width, &row, 1) < 1)
             break;
@@ -251,6 +293,75 @@ void SectionScreen::drawWrappedText(
         start = row.next;
         ++line;
     }
+}
+
+int SectionScreen::wrappedLineCount(
+    NVGcontext *context, const QString &text,
+    float width, float size) const
+{
+    if (!context || m_fontId < 0 || text.isEmpty() || width <= 1.0f)
+        return 0;
+    const QByteArray utf8 = text.toUtf8();
+    const char *start = utf8.constData();
+    const char *end = start + utf8.size();
+    nvgFontFaceId(context, m_fontId);
+    nvgFontSize(context, size);
+    nvgTextAlign(context, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
+    nvgTextLineHeight(context, 1.12f);
+    int lines = 0;
+    while (start < end) {
+        NVGtextRow row;
+        if (nvgTextBreakLines(context, start, end, width, &row, 1) < 1)
+            break;
+        start = row.next;
+        ++lines;
+    }
+    return lines;
+}
+
+void SectionScreen::updateDynamicItemHeights(NVGcontext *context)
+{
+    if (m_section != NavigationRail::DynamicSection)
+        return;
+    if (qAbs(m_dynamicHeightWidth - m_lastWidth) < 0.5f &&
+        m_itemHeights.size() == m_items.size()) {
+        return;
+    }
+    while (m_itemHeights.size() < m_items.size())
+        m_itemHeights.append(122.0f);
+    const float cardX = NavigationRail::width() + 14.0f;
+    const float cardWidth = m_lastWidth - cardX - 14.0f;
+    const float bodyWidth = qMax(1.0f, cardWidth - 22.0f);
+    int index;
+    for (index = 0; index < m_items.size(); ++index) {
+        const ContentItemCompat &item = m_items.at(index);
+        QString body = item.description;
+        if (body.isEmpty())
+            body = item.mediaTitle;
+        const int bodyLines = qMax(
+            1, wrappedLineCount(context, body, bodyWidth, 10.0f));
+        const float bodyHeight = bodyLines * 11.2f;
+        float height = 43.0f + bodyHeight + 29.0f;
+        const bool hasImageAttachment =
+            !item.mediaPicture.trimmed().isEmpty();
+        const bool separateTitle = !item.mediaTitle.trimmed().isEmpty() &&
+            item.mediaTitle.trimmed() != body.trimmed() &&
+            item.kind != VideoContentItem;
+        if (hasImageAttachment) {
+            const float imageWidth = qMax(1.0f, cardWidth - 20.0f);
+            float imageHeight = imageWidth * 9.0f / 16.0f;
+            if (item.mediaWidth > 0 && item.mediaHeight > 0) {
+                imageHeight = imageWidth * item.mediaHeight /
+                    static_cast<float>(item.mediaWidth);
+            }
+            height = 43.0f + bodyHeight + 8.0f +
+                (separateTitle ? 30.0f : 0.0f) + imageHeight + 27.0f;
+        } else if (separateTitle) {
+            height += 32.0f;
+        }
+        m_itemHeights[index] = qMax(82.0f, height);
+    }
+    m_dynamicHeightWidth = m_lastWidth;
 }
 
 void SectionScreen::drawAvatar(
@@ -455,11 +566,9 @@ float SectionScreen::itemHeight(int index) const
 {
     if (index < 0 || index >= m_items.size())
         return 76.0f;
-    const ContentItemCompat &item = m_items.at(index);
     if (m_section == NavigationRail::DynamicSection) {
-        const bool hasAttachment = !item.mediaTitle.trimmed().isEmpty() ||
-            !item.mediaPicture.trimmed().isEmpty();
-        return hasAttachment ? 178.0f : 122.0f;
+        return index < m_itemHeights.size()
+            ? m_itemHeights.at(index) : 122.0f;
     }
     if (m_section == NavigationRail::MessagesSection)
         return m_messageTab == 3 ? 70.0f : 76.0f;
@@ -481,13 +590,14 @@ QRectF SectionScreen::itemFrame(int index) const
 void SectionScreen::drawDynamicCard(
     NVGcontext *context,
     const ContentItemCompat &item,
+    int index,
     const QRectF &frame) const
 {
     const float x = static_cast<float>(frame.x());
     const float y = static_cast<float>(frame.y());
     const float width = static_cast<float>(frame.width());
     const float height = static_cast<float>(frame.height());
-    const bool hasAttachment = !item.mediaTitle.trimmed().isEmpty() ||
+    const bool hasImageAttachment =
         !item.mediaPicture.trimmed().isEmpty();
 
     nvgBeginPath(context);
@@ -509,21 +619,55 @@ void SectionScreen::drawDynamicCard(
     QString body = item.description;
     if (body.isEmpty())
         body = item.mediaTitle;
+    const int bodyLines = qMax(
+        1, wrappedLineCount(context, body, width - 22.0f, 10.0f));
+    const float bodyHeight = bodyLines * 11.2f;
     drawWrappedText(context, body, x + 11.0f, y + 43.0f,
-                    width - 22.0f, 10.0f, hasAttachment ? 2 : 3,
+                    width - 22.0f, 10.0f, 0,
                     nvgRGB(242, 242, 247));
 
-    if (hasAttachment) {
-        const float mediaY = y + 72.0f;
-        const float mediaHeight = 78.0f;
-        NVGpaint mediaPaint = nvgLinearGradient(
-            context, x + 10.0f, mediaY, x + width - 10.0f,
-            mediaY + mediaHeight, nvgRGBA(108, 77, 122, 242),
-            nvgRGBA(48, 91, 128, 242));
+    QString mediaTitle = item.mediaTitle;
+    if (mediaTitle.isEmpty())
+        mediaTitle = QString::fromUtf8("图片动态");
+    const bool separateTitle = !item.mediaTitle.trimmed().isEmpty() &&
+        item.mediaTitle.trimmed() != body.trimmed() &&
+        item.kind != VideoContentItem;
+    float mediaY = y + 43.0f + bodyHeight + 8.0f;
+    if (separateTitle) {
         nvgBeginPath(context);
-        nvgRoundedRect(context, x + 10.0f, mediaY, width - 20.0f,
+        nvgRoundedRect(context, x + 10.0f, mediaY,
+                       width - 20.0f, 25.0f, 6.0f);
+        nvgFillColor(context, nvgRGBA(255, 255, 255, 10));
+        nvgFill(context);
+        drawWrappedText(context, item.mediaTitle,
+                        x + 17.0f, mediaY + 6.0f,
+                        width - 34.0f, 9.5f, 1,
+                        nvgRGB(238, 238, 244));
+        mediaY += 30.0f;
+    }
+
+    if (hasImageAttachment) {
+        const float mediaWidth = width - 20.0f;
+        float mediaHeight = mediaWidth * 9.0f / 16.0f;
+        if (item.mediaWidth > 0 && item.mediaHeight > 0) {
+            mediaHeight = mediaWidth * item.mediaHeight /
+                static_cast<float>(item.mediaWidth);
+        }
+        const int imageHandle = index >= 0 && index < m_itemImages.size()
+            ? m_itemImages.at(index) : -1;
+        nvgBeginPath(context);
+        nvgRoundedRect(context, x + 10.0f, mediaY, mediaWidth,
                        mediaHeight, 7.0f);
-        nvgFillPaint(context, mediaPaint);
+        if (imageHandle > 0) {
+            nvgFillPaint(context, nvgImagePattern(
+                context, x + 10.0f, mediaY, mediaWidth,
+                mediaHeight, 0.0f, imageHandle, 1.0f));
+        } else {
+            nvgFillPaint(context, nvgLinearGradient(
+                context, x + 10.0f, mediaY, x + width - 10.0f,
+                mediaY + mediaHeight, nvgRGBA(108, 77, 122, 242),
+                nvgRGBA(48, 91, 128, 242)));
+        }
         nvgFill(context);
         nvgBeginPath(context);
         nvgRoundedRect(context, x + 17.0f, mediaY + 8.0f,
@@ -534,40 +678,28 @@ void SectionScreen::drawDynamicCard(
                      ? QString::fromUtf8("动态") : item.badge,
                  x + 33.0f, mediaY + 15.5f, 7.6f,
                  nvgRGB(251, 245, 250), NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
-        QString mediaTitle = item.mediaTitle;
-        if (mediaTitle.isEmpty())
-            mediaTitle = QString::fromUtf8("图片动态");
-        if (item.badge == QString::fromUtf8("图文")) {
-            const float gridGap = 4.0f;
-            const float gridWidth = (width - 42.0f - gridGap * 2.0f) / 3.0f;
-            const NVGcolor gridColors[] = {
-                nvgRGBA(237, 148, 181, 216),
-                nvgRGBA(242, 185, 120, 216),
-                nvgRGBA(148, 185, 235, 216)
-            };
-            int gridIndex;
-            for (gridIndex = 0; gridIndex < 3; ++gridIndex) {
-                nvgBeginPath(context);
-                nvgRoundedRect(context,
-                               x + 17.0f + gridIndex * (gridWidth + gridGap),
-                               mediaY + 31.0f, gridWidth, 38.0f, 4.0f);
-                nvgFillColor(context, gridColors[gridIndex]);
-                nvgFill(context);
-            }
-        } else {
-            drawWrappedText(context, mediaTitle, x + 17.0f, mediaY + 31.0f,
-                            width - 64.0f, 9.5f, 2,
-                            nvgRGB(250, 250, 253));
-        }
         if (item.kind == VideoContentItem) {
             nvgBeginPath(context);
-            nvgCircle(context, x + width - 26.0f, mediaY + 51.0f, 12.0f);
+            nvgRoundedRect(context, x + 10.0f,
+                           mediaY + mediaHeight - 35.0f,
+                           mediaWidth, 35.0f, 7.0f);
+            nvgFillColor(context, nvgRGBA(13, 13, 20, 156));
+            nvgFill(context);
+            drawWrappedText(context, mediaTitle, x + 17.0f,
+                            mediaY + mediaHeight - 29.0f,
+                            width - 64.0f, 9.5f, 2,
+                            nvgRGB(250, 250, 253));
+            // Keep the play affordance centered even for portrait covers.
+            nvgBeginPath(context);
+            nvgCircle(context, x + width - 26.0f,
+                      mediaY + mediaHeight * 0.5f, 12.0f);
             nvgFillColor(context, nvgRGBA(21, 21, 29, 166));
             nvgFill(context);
             nvgBeginPath(context);
-            nvgMoveTo(context, x + width - 29.0f, mediaY + 45.0f);
-            nvgLineTo(context, x + width - 29.0f, mediaY + 57.0f);
-            nvgLineTo(context, x + width - 19.0f, mediaY + 51.0f);
+            const float playY = mediaY + mediaHeight * 0.5f;
+            nvgMoveTo(context, x + width - 29.0f, playY - 6.0f);
+            nvgLineTo(context, x + width - 29.0f, playY + 6.0f);
+            nvgLineTo(context, x + width - 19.0f, playY);
             nvgClosePath(context);
             nvgFillColor(context, nvgRGB(255, 255, 255));
             nvgFill(context);
@@ -746,6 +878,7 @@ void SectionScreen::draw(NVGcontext *context, float width, float height)
         m_chatTabHitBox = QRectF();
     }
     m_itemTop = itemTop;
+    updateDynamicItemHeights(context);
     if ((m_section == NavigationRail::DynamicSection ||
          m_section == NavigationRail::MessagesSection) && m_loggedIn) {
         float contentHeight = 0.0f;
@@ -784,7 +917,7 @@ void SectionScreen::draw(NVGcontext *context, float width, float height)
             if (frame.bottom() < itemTop || frame.top() > contentBottom)
                 continue;
             if (m_section == NavigationRail::DynamicSection)
-                drawDynamicCard(context, m_items.at(index), frame);
+                drawDynamicCard(context, m_items.at(index), index, frame);
             else
                 drawMessageRow(context, m_items.at(index), frame);
         }

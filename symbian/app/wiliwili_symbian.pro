@@ -1,6 +1,6 @@
 TEMPLATE = app
 TARGET = wiliwili_symbian
-VERSION = 1.1.0
+VERSION = 1.2.0
 DEFINES += WILIWILI_SYMBIAN_VERSION_STR=\"$$VERSION\"
 
 # NIKINIKI is the public product name. Keep the proven executable target,
@@ -26,6 +26,103 @@ contains(CONFIG, devvideodirectprobe1) {
     message(Enabling DevVideo DSA plus ARGB overlay probe)
 }
 
+# E7 diagnosis: route MMF display directly to the player top-level RWindow,
+# rather than the persistent Qt native child normally used for video.  This is
+# deliberately opt-in so ordinary Debug/Release builds retain the product
+# window graph.
+contains(CONFIG, e7mmfrootwindow1) {
+    DEFINES += WILIWILI_ENABLE_E7_MMF_ROOT_WINDOW_DIAGNOSTIC
+    message(Enabling E7 MMF root-window display diagnostic)
+}
+
+# E7 follow-up: the same root-window binding, but without the transparent
+# ARGB overlay.  Use only after e7mmfrootwindow1 has ruled out the normal
+# native child; this isolates hardware-video composition from the overlay.
+contains(CONFIG, e7mmfbarewindow1) {
+    DEFINES += WILIWILI_ENABLE_E7_MMF_ROOT_WINDOW_DIAGNOSTIC \
+               WILIWILI_ENABLE_E7_MMF_BARE_WINDOW_DIAGNOSTIC
+    message(Enabling E7 bare MMF root-window diagnostic without ARGB overlay)
+}
+
+# E7 controller-init diagnosis: use the standard CVideoPlayerUtility window
+# binding at NewL(), instead of CVideoPlayerUtility2's post-open dynamic
+# AddDisplayWindowL().  It remains the same MMF API family and does not touch
+# FFmpeg, Direct DevVideo or DSA.
+contains(CONFIG, e7mmflegacyutility1) {
+    DEFINES += WILIWILI_ENABLE_E7_MMF_LEGACY_UTILITY_DIAGNOSTIC
+    message(Enabling E7 legacy MMF utility construction diagnostic)
+}
+
+# E7 controller-isolation diagnosis: the registry dump below is useful while
+# bringing up DevVideo, but is not needed for CVideoPlayerUtility playback.
+# Keep the normal diagnostic available, while allowing a test with no prior
+# DevVideo object at all before MMF opens its controller.
+contains(CONFIG, e7mmfnoprobe1) {
+    DEFINES += WILIWILI_DISABLE_NATIVE_DEVVIDEO_PROBE
+    message(Disabling native MMF DevVideo registry probe for E7 diagnosis)
+}
+
+# E7 controller-input diagnosis: OpenFileL(RFile) is required for progressive
+# playback, but a complete local MP4 can use the ordinary filename overload.
+# This isolates controller selection from the application's shared RFile.
+contains(CONFIG, e7mmfpathopen1) {
+    DEFINES += WILIWILI_ENABLE_E7_MMF_PATH_OPEN_DIAGNOSTIC
+    message(Using filename-based MMF OpenFileL for E7 diagnosis)
+}
+
+# E7 controller diagnosis: report only the media properties reported by MMF
+# after Prepare().  It does not alter controller selection, decoder setup, or
+# display configuration.
+contains(CONFIG, e7mmfcontrollertrace1) {
+    DEFINES += WILIWILI_ENABLE_E7_MMF_CONTROLLER_TRACE
+    message(Enabling E7 MMF media-track trace)
+}
+
+# Qt Mobility's public Symbian MMF backend deliberately pins video playback
+# to Helix (0x101F8514) for both local files and URLs.  NIKINIKI normally
+# leaves controller resolution to MMF, so this one opt-in E7 test uses the
+# same controller UID, default priority preference and filename overload for
+# an already completed local MP4.  It also records the controller that MMF
+# actually opened.  This is a controller-selection control only: it neither
+# invokes the system player nor changes the normal package's backend.
+contains(CONFIG, e7mmfhelix1) {
+    DEFINES += WILIWILI_ENABLE_E7_MMF_HELIX_DIAGNOSTIC \
+               WILIWILI_ENABLE_E7_MMF_PATH_OPEN_DIAGNOSTIC \
+               WILIWILI_DISABLE_NATIVE_DEVVIDEO_PROBE
+    LIBS += -lmmfcontrollerframework
+    message(Enabling E7 Qt-Mobility Helix controller diagnostic)
+}
+
+# Final E7 display diagnosis.  This follows Qt Mobility's graphics-surface
+# route: after Prepare(), CVideoPlayerUtility2::AddDisplayL() delivers an MMF
+# surface through MMMFSurfaceEventHandler, which is attached as the native
+# video's RWindow background.  It deliberately does not add the legacy/direct
+# display window before Prepare().  It remains an opt-in diagnostic and does
+# not change the normal MMF backend.
+contains(CONFIG, e7mmfsurface1) {
+    DEFINES += WILIWILI_ENABLE_E7_MMF_GRAPHICS_SURFACE_DIAGNOSTIC \
+               WILIWILI_ENABLE_E7_MMF_HELIX_DIAGNOSTIC \
+               WILIWILI_ENABLE_E7_MMF_PATH_OPEN_DIAGNOSTIC \
+               WILIWILI_DISABLE_NATIVE_DEVVIDEO_PROBE
+    LIBS += -lmmfcontrollerframework
+    message(Enabling E7 MMF graphics-surface output diagnostic)
+}
+
+# E7 capability control.  The public CVideoPlayerUtility documentation
+# requires UserEnvironment for video playback, while normal NIKINIKI builds
+# deliberately do not request it.  Keep this as a separate, one-variable
+# diagnosis: the same local file, Helix controller and graphics-surface route
+# are used, but no privileged MultimediaDD capability is requested.
+contains(CONFIG, e7mmfuserenv1) {
+    DEFINES += WILIWILI_ENABLE_E7_MMF_USERENVIRONMENT_DIAGNOSTIC \
+               WILIWILI_ENABLE_E7_MMF_GRAPHICS_SURFACE_DIAGNOSTIC \
+               WILIWILI_ENABLE_E7_MMF_HELIX_DIAGNOSTIC \
+               WILIWILI_ENABLE_E7_MMF_PATH_OPEN_DIAGNOSTIC \
+               WILIWILI_DISABLE_NATIVE_DEVVIDEO_PROBE
+    LIBS += -lmmfcontrollerframework
+    message(Enabling E7 UserEnvironment MMF capability diagnostic)
+}
+
 QT += core gui network opengl
 CONFIG += warn_on mobility
 MOBILITY += multimedia
@@ -45,6 +142,30 @@ DEFINES += MG_ARCH=MG_ARCH_NEWLIB
 # research but is not requested by normal soft playback after device testing.
 FFMPEG_SOFT_BUILD = 1
 FFMPEG_SOFT_SKIP_NONREF_LOOP_FILTER = 1
+# E7 hardware-output diagnosis.  This deliberately removes the PPSSPP-FFmpeg
+# objects from this one test build: AVC is supplied to an application-owned
+# Broadcom DevVideo decoder, while CVideoPlayerUtility2 remains open only for
+# AAC and the media clock.  The decoder returns memory pictures to the
+# existing opaque RGB565 native surface; it neither invokes the system player
+# nor uses DevVideo direct display/DSA.  Normal packages keep FFmpeg enabled.
+contains(CONFIG, e7devvideomemory1) {
+    FFMPEG_SOFT_BUILD = 0
+    DEFINES += WILIWILI_ENABLE_E7_DEVVIDEO_MEMORY_DIAGNOSTIC \
+               WILIWILI_DISABLE_NATIVE_DEVVIDEO_PROBE
+    message(Enabling E7 Broadcom DevVideo memory-output diagnostic; FFmpeg disabled)
+}
+
+# E7 control case for the memory-output diagnostic.  It does not open MMF at
+# all, so it has no audio by design.  A real picture here would prove that the
+# preceding -44 came from MMF's unreleased video resource rather than the
+# public DevVideo memory-output initialization itself.
+contains(CONFIG, e7devvideomemorysolo1) {
+    FFMPEG_SOFT_BUILD = 0
+    DEFINES += WILIWILI_ENABLE_E7_DEVVIDEO_MEMORY_DIAGNOSTIC \
+               WILIWILI_ENABLE_E7_DEVVIDEO_MEMORY_SOLO_DIAGNOSTIC \
+               WILIWILI_DISABLE_NATIVE_DEVVIDEO_PROBE
+    message(Enabling E7 standalone DevVideo memory-output control; MMF and FFmpeg disabled)
+}
 contains(CONFIG, ffmpegfullfilter) {
     FFMPEG_SOFT_SKIP_NONREF_LOOP_FILTER = 0
 }
@@ -109,6 +230,7 @@ SOURCES += $$PWD/main.cpp \
            $$SYMBIAN_ROOT/source/network/bilibili_section_parser.cpp \
            $$SYMBIAN_ROOT/source/network/native_transport.cpp \
            $$SYMBIAN_ROOT/source/platform/platform_metrics.cpp \
+           $$SYMBIAN_ROOT/source/platform/flv_live_demuxer.cpp \
            $$SYMBIAN_ROOT/source/platform/mp4_avc_probe_reader.cpp \
            $$SYMBIAN_ROOT/source/platform/video_playback_backend.cpp \
            $$SYMBIAN_ROOT/source/ui/detail_screen.cpp \
@@ -159,6 +281,12 @@ symbian {
     # NetworkServices opens the bearer; ReadUserData permits certificate-store
     # access. Both capabilities are available to a self-signed SIS.
     TARGET.CAPABILITY += NetworkServices ReadUserData
+    contains(CONFIG, e7mmfuserenv1) {
+        # This is the documented minimum capability for CVideoPlayerUtility.
+        # MultimediaDD remains deliberately absent: it is a privileged
+        # priority capability, not required to establish ordinary playback.
+        TARGET.CAPABILITY += UserEnvironment
+    }
     TARGET.EPOCSTACKSIZE = 0x20000
     TARGET.EPOCHEAPSIZE = 0x040000 0x04000000
 

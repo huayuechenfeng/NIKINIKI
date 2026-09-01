@@ -32,7 +32,8 @@ bool BilibiliDetailParser::parseVideoDetail(
     const QByteArray &body,
     VideoDetailCompat *detail,
     int *apiCode,
-    QString *errorText)
+    QString *errorText,
+    QVector<RecommendVideoResultCompat> *related)
 {
     if (!detail)
         return false;
@@ -41,6 +42,8 @@ bool BilibiliDetailParser::parseVideoDetail(
         *apiCode = -9999;
     if (errorText)
         errorText->clear();
+    if (related)
+        related->clear();
     if (body.isEmpty()) {
         if (errorText)
             *errorText = QString::fromLatin1("empty response");
@@ -76,37 +79,40 @@ bool BilibiliDetailParser::parseVideoDetail(
         return false;
     }
 
-    VideoDetailCompat parsed;
-    parsed.bvid = detailJsonString(data, "$.bvid");
-    parsed.pic = detailJsonString(data, "$.pic");
-    parsed.title = detailJsonString(data, "$.title");
-    parsed.description = detailJsonString(data, "$.desc");
-    parsed.owner.name = detailJsonString(data, "$.owner.name");
+    const struct mg_str wrappedView = mg_json_get_tok(data, "$.View");
+    const struct mg_str view = wrappedView.buf ? wrappedView : data;
 
-    if (detailJsonNumber(data, "$.aid", &number))
+    VideoDetailCompat parsed;
+    parsed.bvid = detailJsonString(view, "$.bvid");
+    parsed.pic = detailJsonString(view, "$.pic");
+    parsed.title = detailJsonString(view, "$.title");
+    parsed.description = detailJsonString(view, "$.desc");
+    parsed.owner.name = detailJsonString(view, "$.owner.name");
+
+    if (detailJsonNumber(view, "$.aid", &number))
         parsed.aid = static_cast<quint64>(number);
-    if (detailJsonNumber(data, "$.pubdate", &number))
+    if (detailJsonNumber(view, "$.pubdate", &number))
         parsed.pubdate = static_cast<int>(number);
-    if (detailJsonNumber(data, "$.duration", &number))
+    if (detailJsonNumber(view, "$.duration", &number))
         parsed.duration = static_cast<int>(number);
-    if (detailJsonNumber(data, "$.owner.mid", &number))
+    if (detailJsonNumber(view, "$.owner.mid", &number))
         parsed.owner.mid = static_cast<quint64>(number);
-    if (detailJsonNumber(data, "$.stat.view", &number))
+    if (detailJsonNumber(view, "$.stat.view", &number))
         parsed.stat.view = static_cast<int>(number);
-    if (detailJsonNumber(data, "$.stat.danmaku", &number))
+    if (detailJsonNumber(view, "$.stat.danmaku", &number))
         parsed.stat.danmaku = static_cast<int>(number);
-    if (detailJsonNumber(data, "$.stat.favorite", &number))
+    if (detailJsonNumber(view, "$.stat.favorite", &number))
         parsed.stat.favorite = static_cast<int>(number);
-    if (detailJsonNumber(data, "$.stat.coin", &number))
+    if (detailJsonNumber(view, "$.stat.coin", &number))
         parsed.stat.coin = static_cast<int>(number);
-    if (detailJsonNumber(data, "$.stat.share", &number))
+    if (detailJsonNumber(view, "$.stat.share", &number))
         parsed.stat.share = static_cast<int>(number);
-    if (detailJsonNumber(data, "$.stat.like", &number))
+    if (detailJsonNumber(view, "$.stat.like", &number))
         parsed.stat.like = static_cast<int>(number);
-    if (detailJsonNumber(data, "$.stat.reply", &number))
+    if (detailJsonNumber(view, "$.stat.reply", &number))
         parsed.stat.reply = static_cast<int>(number);
 
-    const struct mg_str pages = mg_json_get_tok(data, "$.pages");
+    const struct mg_str pages = mg_json_get_tok(view, "$.pages");
     if (pages.buf && pages.len >= 2 && pages.buf[0] == '[') {
         size_t offset = 0;
         struct mg_str item;
@@ -135,6 +141,37 @@ bool BilibiliDetailParser::parseVideoDetail(
         if (errorText)
             *errorText = QString::fromLatin1("detail is incomplete");
         return false;
+    }
+
+    if (related) {
+        const struct mg_str relatedItems =
+            mg_json_get_tok(data, "$.Related");
+        size_t offset = 0;
+        struct mg_str item;
+        while (related->size() < 10 &&
+               (offset = mg_json_next(
+                    relatedItems, offset, 0, &item)) != 0) {
+            if (!item.buf || item.len < 2 || item.buf[0] != '{')
+                continue;
+            RecommendVideoResultCompat candidate;
+            candidate.bvid = detailJsonString(item, "$.bvid");
+            candidate.pic = detailJsonString(item, "$.pic");
+            candidate.title = detailJsonString(item, "$.title");
+            candidate.owner.name = detailJsonString(item, "$.owner.name");
+            if (detailJsonNumber(item, "$.aid", &number))
+                candidate.id = static_cast<quint64>(number);
+            if (detailJsonNumber(item, "$.duration", &number))
+                candidate.duration = static_cast<int>(number);
+            if (detailJsonNumber(item, "$.stat.view", &number))
+                candidate.stat.view = static_cast<int>(number);
+            if (detailJsonNumber(item, "$.stat.danmaku", &number))
+                candidate.stat.danmaku = static_cast<int>(number);
+            if (!candidate.bvid.isEmpty() &&
+                candidate.bvid != parsed.bvid &&
+                !candidate.title.isEmpty()) {
+                related->append(candidate);
+            }
+        }
     }
 
     *detail = parsed;

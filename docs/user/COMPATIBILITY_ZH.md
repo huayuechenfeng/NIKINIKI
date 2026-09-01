@@ -1,8 +1,10 @@
 # Symbian³ / Anna / Belle 统一安装包兼容策略
 
 > 状态：Active
-> 更新日期：2026-08-31
-> 结论：正式版只维护一个以 `Symbian3Qt474` 构建的应用 SIS；该包已在 Nokia 603 / Belle 实测正常。原版 Symbian³ 和 Anna 另行提供离线 Qt/Mobility 运行库说明并在公测收集结果，不为三个系统分别编译应用。
+> 更新日期：2026-09-02
+> 结论：正式版只维护一个以 `Symbian3Qt474` 构建的应用 SIS；Nokia 603 是当前真机基线。
+> Nokia N8 / E7 / X7 / C7 等初代 Symbian³ 设备因播放黑屏 bug 在 1.2 暂不支持；修复后仍回到
+> Symbian³ / Anna / Belle 的统一包目标，不为系统或机型拆分应用。
 
 ## 1. 发布决定
 
@@ -17,7 +19,8 @@
 
 发布物计划分为两类，但应用本身只有一个版本：
 
-- `NIKINIKI_版本号_release.sis`：统一的 ARMv5 应用包，面向原版 Symbian³、Anna 和 Belle；
+- `NIKINIKI_版本号_release.sis`：统一的 ARMv5 应用包；当前支持 Nokia 603、700、701、808
+  等原生 Belle 设备，初代 Symbian³ 机型暂不支持；
 - 运行库前置包/安装说明：只给缺少相应运行库的原版 Symbian³、Anna 用户使用，不能依赖已经停止服务的在线 Smart Installer。
 
 当前 SIS 明确要求 Qt `4.7.4` 和 Qt Mobility `1.2.0` 或更高兼容版本。Belle 真机已有当前项目所需运行环境；原版 Symbian³、Anna 必须先确认或离线补齐这些运行库。缺少运行库时是安装前置条件不满足，不代表需要另一套应用二进制。
@@ -61,13 +64,14 @@
 
 ## 5. 真机与公测矩阵
 
-统一包先以 Nokia 603 / Belle 作为发布前回归基线；原版 Symbian³、Anna 使用同一个有效签名 Release SIS 在公测中收集：
+统一包以 Nokia 603 / Belle 作为发布前回归基线。初代 Symbian³ 播放黑屏修复前，原版 Symbian³、
+Anna 与 N8 / E7 / X7 / C7 不再纳入 1.2 公测：
 
 | 系统 | 安装前置 | 最小通过项 |
 |---|---|---|
-| 原版 Symbian³ | Qt 4.7.4 + Qt Mobility 1.2.x | 公测待收集：冷启动、首页 HTTPS、图片、QR 登录/重启保持、MMF 正常流、FFmpeg 风险流、返回/重复进入 |
-| Symbian Anna | Qt 4.7.4 + Qt Mobility 1.2.x | 公测待收集：同上 |
-| Nokia Belle | 固件现有兼容运行库 | Nokia 603 1.1.0 实测正常；N8 / E7 / X7 / C7 推荐升级 Belle 并使用 `OpenFileL` 边下边播 |
+| 原版 Symbian³ | Qt 4.7.4 + Qt Mobility 1.2.x | 因初代设备播放黑屏，1.2 暂不支持；修复后恢复公测 |
+| Symbian Anna | Qt 4.7.4 + Qt Mobility 1.2.x | 因初代设备播放黑屏，1.2 暂不支持；修复后恢复公测 |
+| Nokia Belle | 固件现有兼容运行库 | Nokia 603 为真机基线；700 / 701 / 808 等原生 Belle 设备保持支持；N8 / E7 / X7 / C7 暂不支持 |
 
 QR 登录是本次兼容改动的专项门：日志须出现非零 `WW:COOKIE_PARTS` 捕获，并最终满足 `WW:LOGIN_COOKIE_SUMMARY true true true`、账号资料成功加载、退出重启后会话仍有效。
 
@@ -77,7 +81,7 @@ QR 登录是本次兼容改动的专项门：日志须出现非零 `WW:COOKIE_PA
 
 ## 6. 正式发布包
 
-1.1.0 的 `Symbian3Qt474` Release 产物已经剥离 SDK 旧签名，并使用当前有效证书完成重签和公开发布。
+1.2.0 的 `Symbian3Qt474` Release 产物已经剥离 SDK 旧签名，并使用当前有效证书完成重签和公开发布。
 安装包身份、大小、SHA-256 与证书信息只在
-[1.1.0 发布说明](../releases/RELEASE_1.1.0_ZH.md)维护。SDK 自动生成的过期自签名包、
+[1.2.0 发布说明](../releases/RELEASE_1.2.0_ZH.md)维护。SDK 自动生成的过期自签名包、
 历史 Belle 包和诊断包均不能替代正式统一包。

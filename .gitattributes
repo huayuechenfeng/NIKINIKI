@@ -1,0 +1,2 @@
+# Keep distributable text patches byte-stable across Windows and non-Windows checkouts.
+symbian/patches/** text eol=lf

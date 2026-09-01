@@ -1,7 +1,7 @@
 # NIKINIKI 故障排查
 
 > 状态：Active
-> 适用版本：1.1.0；同时保留 1.0.0 回退说明
+> 适用版本：1.2.0；初代 Symbian³ 设备暂时保留 1.1.0
 
 ## 首次启动长时间黑屏
 
@@ -36,9 +36,8 @@
 
 不要公开 Cookie、完整签名媒体 URL、账号令牌或私网 CODA 地址。
 
-N8 / E7 / X7 / C7 建议升级到 Nokia Belle，并先试“设置 → 播放方式 → `OpenFileL`
-边下边播”。它可绕开部分旧机型的 MMF 网络流式 controller，同时保留本机硬件解码。
-“全程硬解”不会在硬件拒绝时回退，排查结束后建议恢复“自动选择”。
+N8 / E7 / X7 / C7 等初代 Symbian³ 设备目前的播放黑屏问题尚未解决，1.2 暂不支持这些机型。
+请保留 1.1.0 并等待后续修复；不要通过反复切换播放方式或解码方式绕过该限制。
 
 ## 播放卡顿
 
@@ -56,5 +55,5 @@ MMF 硬解兼容的视频通常更流畅。进入本机软件 H.264 路径的 36
 公开用户只应安装 `NIKINIKI_版本号_release.sis`。Debug、unsigned、`surfacepersist1`、`codeccompat1`、
 `headercontrol1`、`armsoftprobe1`、GLES-YUV 等包均为历史研究材料。
 
-如果 1.1.0 安装失败或无法启动，请到 QQ 群 `977410275` 反馈，并可先继续使用
-[1.0.0](https://github.com/huayuechenfeng/NIKINIKI/releases/tag/v1.0.0)。
+如果 1.2.0 安装失败或无法启动，请到 QQ 群 `977410275` 反馈。初代 Symbian³ 设备请继续使用
+[1.1.0](https://github.com/huayuechenfeng/NIKINIKI/releases/tag/v1.1.0)。

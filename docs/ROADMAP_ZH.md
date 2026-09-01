@@ -1,10 +1,18 @@
 # NIKINIKI 路线图
 
 > 状态：Active
-> 基线：1.1.0 正式发布后的产品主线
+> 基线：1.2.0 正式发布后的维护主线
 > 本页职责：维护 Now / Next / Later，不保存已完成实验的过程
 
-## Now：建立 1.1 回归与性能基线
+## Now：修复初代 Symbian³ 播放黑屏并维持 1.2 基线
+
+### 0. 初代 Symbian³ 黑屏恢复
+
+- 以 Nokia N8 / E7 / X7 / C7 的完整本地 MP4 和同一线上媒体为控制，分别记录 controller、
+  视频 surface、窗口链路和音视频轨状态；
+- 修复前维持 1.2 的不支持公告，不通过降低清晰度、切 CDN 或重复尝试掩盖黑屏；
+- 修复后再恢复原版 Symbian³、Anna 和初代 Belle 的统一 SIS 回归，目标仍是 Symbian^3 全机型、
+  全系统版本。
 
 ### 1. 播放器稳定性
 
@@ -28,7 +36,7 @@
 
 ### 3. 系统覆盖
 
-- 在原版 Symbian³、Anna 上安装与 Belle 相同的 1.1 SIS；
+- 在原版 Symbian³、Anna 上安装与 Belle 相同的 1.2.0 开发 SIS；
 - 核验 Qt 4.7.4、Qt Mobility 1.2.x、TLS、冷启动、首页图片、登录和播放；
 - 在 N8/X7/C7 Belle 对同一 MP4 固定“全程硬解”，依次比较 `OpenUrlL`、
   增长文件 `OpenFileL`、完整下载 `OpenFileL`，禁止同时改变清晰度或解码器；
@@ -56,21 +64,28 @@
 软件性能目标是先推动 Symbian³ 设备的 360P 软件播放稳定达到 20 fps 以上；
 Nokia 603 再向稳定 30 fps 研究。目标不是已取得的结果，任何数字都必须由真机矩阵支持。
 
+## 已关闭的研究边界
+
+H.264 ref7 支线已经按 H1 结题：Nokia 603 的目标合法 R7 graph 可由 Header/Submit split 和精确
+admission patch 两条路径正确硬解。该项目不再占用 Now/Next；最终证据、产品边界和归档入口见
+[H.264 ref7 硬件解码结题报告](research/player/H264_REF7_HARDWARE_DECODE_FINAL_REPORT_ZH.md)。
+
 ## Later：不阻塞播放器主线
 
-- 直播证书、容器、画质切换和直播弹幕；
+- 直播断流恢复、画质切换和直播弹幕；
 - 局部布局和其他 UI polish；
-- BCM2763/“BCM2727”插件命名、固件和 DPB 边界研究；
 - DevVideo post-processor memory-output 等底层替代方案。
+- 对可选 ref7 补丁做跨设备真机资格测试；静态特征命中不计通过，也不阻塞播放器发布。
 
-发布后研究入口位于 `research/player/post-1.0/`。只有建立当前 1.0 回归基线后，
-才考虑把其中某项提升为正式工作。
+阶段性 H.264 研究材料已归档在 `research/player/post-1.0/`；其他研究候选只有建立当前回归基线后，
+才考虑提升为正式工作。
 
 ## 不重新执行
 
 - 桥接、远端重封装或远端转码；
 - Q6/240P 请求阶梯或以切 CDN 代替编码兼容处理；
-- SPS ref/DPB 伪装；
+- 把 full-SPS fake 持续送入 decoder 作为播放兼容方案；成功的 Header/Submit split 只可在同一
+  Direct DevVideo 会话中使用，不能伪装成当前 MMF preflight 已经继承该状态；
 - 系统 ARM H.264 decoder 产品化；
 - Broadcom Direct DevVideo/DSA 全屏显示作为当前播放器后端；
 - GLES 三平面 YUV 普通输出；

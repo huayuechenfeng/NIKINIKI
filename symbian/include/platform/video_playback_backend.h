@@ -52,7 +52,9 @@ public:
     explicit VideoPlaybackBackend(QWidget *videoHost);
     ~VideoPlaybackBackend();
 
-    void setMedia(const QMediaContent &media);
+    void setMedia(
+        const QMediaContent &media,
+        const QByteArray &mimeType = QByteArray());
     void clearMedia();
     void play();
     void pause();

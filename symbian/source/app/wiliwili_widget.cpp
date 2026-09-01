@@ -20,6 +20,7 @@
 #include <QtGui/QMouseEvent>
 #include <QtGui/QInputDialog>
 #include <QtGui/QLineEdit>
+#include <QtGui/QPushButton>
 
 #include "model/home_card.h"
 #include "model/login_session.h"
@@ -339,6 +340,7 @@ WiliwiliWidget::WiliwiliWidget(QWidget *parent)
       m_landscapeWindowProbeActive(false),
 #endif
        m_searchEdit(0),
+       m_searchButton(0),
        m_networkStage(FetchingHome),
        m_homeFreshIndex(0),
        m_homeRequestedFreshIndex(0),
@@ -349,6 +351,8 @@ WiliwiliWidget::WiliwiliWidget(QWidget *parent)
        m_thumbnailIndex(0),
        m_thumbnailSuccessCount(0),
        m_contentImageIndex(0),
+       m_detailThumbnailIndex(0),
+       m_dynamicThumbnailIndex(0),
        m_contentImageGeneration(0),
        m_contentImageLimit(14),
        m_playbackMode(VideoPlayerWidget::UrlStreamingPlayback),
@@ -374,6 +378,8 @@ WiliwiliWidget::WiliwiliWidget(QWidget *parent)
       m_contentSubjectId(0),
       m_commentMode(3),
        m_commentLegacyFallback(false),
+       m_dynamicDetailImageHandle(-1),
+       m_dynamicCommentType(17),
        m_messageType(0),
        m_dynamicPage(1),
        m_dynamicAppend(false),
@@ -404,11 +410,23 @@ WiliwiliWidget::WiliwiliWidget(QWidget *parent)
     m_searchEdit->setPlaceholderText(
         QString::fromUtf8("输入关键词，@开头搜索用户，按回车搜索"));
     m_searchEdit->setStyleSheet(QString::fromLatin1(
-        "QLineEdit { background: #fff7ff; color: #281d32; "
-        "border: 2px solid #fb7299; border-radius: 9px; "
-        "padding: 5px 10px; font-size: 17px; "
+        "QLineEdit { background: #2b2b35; color: #f1f1f5; "
+        "border: 1px solid #696976; border-radius: 9px; "
+        "padding: 5px 70px 5px 10px; font-size: 17px; "
         "selection-background-color: #fb7299; }"));
     m_searchEdit->installEventFilter(this);
+    m_searchButton = new QPushButton(
+        QString::fromUtf8("搜索"), m_searchEdit);
+    m_searchButton->setObjectName(
+        QString::fromLatin1("wiliwiliSearchButton"));
+    m_searchButton->setFocusPolicy(Qt::NoFocus);
+    m_searchButton->setStyleSheet(QString::fromLatin1(
+        "QPushButton { background: #353540; color: #fb91ad; "
+        "border: 1px solid #754356; border-radius: 7px; "
+        "font-size: 14px; } "
+        "QPushButton:pressed { background: #493440; "
+        "border-color: #fb7299; }"));
+    m_searchButton->installEventFilter(this);
     m_searchEdit->hide();
     m_homeScreen.setCards(buildHomeFixture());
     m_homeScreen.setNetworkStatus(QString::fromLatin1("BI:WAIT"));
@@ -461,9 +479,12 @@ WiliwiliWidget::~WiliwiliWidget()
     if (m_searchFocusTimerId)
         killTimer(m_searchFocusTimerId);
     if (m_searchEdit) {
+        if (m_searchButton)
+            m_searchButton->removeEventFilter(this);
         m_searchEdit->removeEventFilter(this);
         delete m_searchEdit;
         m_searchEdit = 0;
+        m_searchButton = 0;
     }
     if (m_cjkFontFile) {
         m_cjkFontFile->close();
@@ -483,6 +504,12 @@ WiliwiliWidget::~WiliwiliWidget()
         for (index = 0; index < m_contentImageHandles.size(); ++index)
             nvgDeleteImage(m_context, m_contentImageHandles.at(index));
         m_contentImageHandles.clear();
+        for (index = 0; index < m_detailImageHandles.size(); ++index)
+            nvgDeleteImage(m_context, m_detailImageHandles.at(index));
+        m_detailImageHandles.clear();
+        for (index = 0; index < m_sectionImageHandles.size(); ++index)
+            nvgDeleteImage(m_context, m_sectionImageHandles.at(index));
+        m_sectionImageHandles.clear();
         nvgDeleteGLES2(m_context);
         m_context = 0;
     }
@@ -1264,17 +1291,24 @@ void WiliwiliWidget::timerEvent(QTimerEvent *event)
                     probeResultText(QString::fromLatin1("DETAIL"));
                 if (result.httpStatus == 200) {
                     VideoDetailCompat detail;
+                    QVector<RecommendVideoResultCompat> related;
                     int apiCode = -9999;
                     QString parseError;
                     if (BilibiliDetailParser::parseVideoDetail(
                             result.body,
                             &detail,
                             &apiCode,
-                            &parseError)) {
+                            &parseError,
+                            &related)) {
                         m_detailScreen.setVideo(detail);
+                        m_detailScreen.setRecommendations(related);
                         m_detailScreen.setNetworkStatus(
-                            QString::fromLatin1("DETAIL:H200 P%1")
-                                .arg(detail.pages.size()));
+                            QString::fromUtf8("DETAIL:H200 P%1 / 推荐 %2")
+                                .arg(detail.pages.size())
+                                .arg(related.size()));
+                        m_detailThumbnailIndex = 0;
+                        m_networkStage = FetchingDetailThumbnail;
+                        startNextDetailThumbnail();
                     } else {
                         qDebug() << "Bilibili detail parse failed"
                                  << apiCode << parseError;
@@ -1285,7 +1319,27 @@ void WiliwiliWidget::timerEvent(QTimerEvent *event)
                 } else {
                     m_detailScreen.setNetworkStatus(transportResult);
                 }
-                m_networkStage = NetworkComplete;
+                if (m_networkStage == FetchingDetail)
+                    m_networkStage = NetworkComplete;
+            } else if (m_networkStage == FetchingDetailThumbnail) {
+                int imageHandle = -1;
+                if (result.httpStatus == 200 &&
+                    !result.body.isEmpty() && m_context) {
+                    makeCurrent();
+                    imageHandle = nvgCreateImageMem(
+                        m_context, 0,
+                        reinterpret_cast<unsigned char *>(
+                            const_cast<char *>(result.body.constData())),
+                        result.body.size());
+                    doneCurrent();
+                }
+                if (imageHandle > 0) {
+                    m_detailImageHandles.append(imageHandle);
+                    m_detailScreen.setRecommendationImage(
+                        m_detailThumbnailIndex, imageHandle);
+                }
+                ++m_detailThumbnailIndex;
+                startNextDetailThumbnail();
             } else if (m_networkStage == FetchingPlayback) {
                 PlaybackSourceCompat source;
                 int apiCode = -9999;
@@ -1698,6 +1752,66 @@ void WiliwiliWidget::timerEvent(QTimerEvent *event)
                     qDebug() << "WW:POST_FAILED" << completedAction
                              << result.httpStatus << apiCode << message;
                 }
+            } else if (m_networkStage == FetchingDynamicDetail) {
+                ContentItemCompat detail;
+                int apiCode = -9999;
+                QString parseError;
+                const bool parsed = result.httpStatus == 200 &&
+                    BilibiliSectionParser::parseDynamicDetail(
+                        result.body, &detail, &apiCode, &parseError);
+                const ContentItemCompat feedItem = m_dynamicDetailItem;
+                if (parsed) {
+                    if (detail.title.trimmed().isEmpty())
+                        detail.title = feedItem.subtitle;
+                    if (detail.subtitle.trimmed().isEmpty())
+                        detail.subtitle = feedItem.badge;
+                    if (detail.description.trimmed().isEmpty())
+                        detail.description = feedItem.description;
+                    if (detail.mediaTitle.trimmed().isEmpty())
+                        detail.mediaTitle = feedItem.mediaTitle;
+                    if (detail.mediaPicture.trimmed().isEmpty())
+                        detail.mediaPicture = feedItem.mediaPicture;
+                    if (detail.picture.trimmed().isEmpty())
+                        detail.picture = feedItem.picture;
+                    if (detail.sourceId.trimmed().isEmpty())
+                        detail.sourceId = feedItem.sourceId;
+                    if (detail.commentId == 0)
+                        detail.commentId = feedItem.commentId;
+                    if (detail.commentType <= 0)
+                        detail.commentType = feedItem.commentType;
+                    if (detail.count == 0)
+                        detail.count = feedItem.count;
+                    if (detail.replyCount == 0)
+                        detail.replyCount = feedItem.replyCount;
+                    if (detail.mediaWidth <= 0)
+                        detail.mediaWidth = feedItem.mediaWidth;
+                    if (detail.mediaHeight <= 0)
+                        detail.mediaHeight = feedItem.mediaHeight;
+                    const QString author = detail.title;
+                    const QString metadata = detail.subtitle;
+                    detail.id = QString::fromLatin1("dynamic-detail");
+                    detail.badge = metadata;
+                    detail.subtitle = author;
+                    m_dynamicDetailItem = detail;
+                    m_contentSubjectId = detail.commentId;
+                    m_dynamicCommentType = detail.commentType > 0
+                        ? detail.commentType : m_dynamicCommentType;
+                    qDebug() << "WW:DYNAMIC_DETAIL_READY"
+                             << result.httpStatus << apiCode
+                             << !detail.description.trimmed().isEmpty()
+                             << !detail.mediaPicture.trimmed().isEmpty()
+                             << detail.commentId << detail.commentType;
+                } else {
+                    qDebug() << "WW:DYNAMIC_DETAIL_FAILED"
+                             << result.httpStatus << apiCode << parseError;
+                }
+                QVector<ContentItemCompat> detailItems;
+                detailItems.append(m_dynamicDetailItem);
+                m_contentScreen.setItems(detailItems);
+                QVector<int> images;
+                images.append(m_dynamicDetailImageHandle);
+                m_contentScreen.setItemImages(images);
+                startDynamicComments();
             } else if (m_networkStage == FetchingContent) {
                 QVector<ContentItemCompat> items;
                 int apiCode = -9999;
@@ -1717,6 +1831,9 @@ void WiliwiliWidget::timerEvent(QTimerEvent *event)
                             result.body, &items, &apiCode, &parseError,
                             &searchPageCount);
                     } else if (m_contentMode == CommentsContentMode) {
+                        parsed = BilibiliContentParser::parseComments(
+                            result.body, &items, &apiCode, &parseError);
+                    } else if (m_contentMode == DynamicDetailContentMode) {
                         parsed = BilibiliContentParser::parseComments(
                             result.body, &items, &apiCode, &parseError);
                     } else if (m_contentMode ==
@@ -1750,6 +1867,8 @@ void WiliwiliWidget::timerEvent(QTimerEvent *event)
                     }
                 }
                 if (parsed) {
+                    if (m_contentMode == DynamicDetailContentMode)
+                        items.prepend(m_dynamicDetailItem);
                     const bool append = m_contentAppend;
                     const int previousCount =
                         m_contentScreen.items().size();
@@ -1766,6 +1885,11 @@ void WiliwiliWidget::timerEvent(QTimerEvent *event)
                         for (slot = 0; slot < items.size(); ++slot)
                             imageSlots.append(-1);
                         m_contentScreen.setItemImages(imageSlots);
+                        if (m_contentMode == DynamicDetailContentMode &&
+                            !imageSlots.isEmpty()) {
+                            m_contentScreen.setItemImage(
+                                0, m_dynamicDetailImageHandle);
+                        }
                     }
                     bool hasMore = false;
                     if (m_contentMode == HistoryContentMode) {
@@ -1805,7 +1929,8 @@ void WiliwiliWidget::timerEvent(QTimerEvent *event)
                     if (m_contentMode == SearchContentMode ||
                         m_contentMode == SearchUsersContentMode ||
                         m_contentMode == CommentsContentMode ||
-                        m_contentMode == CommentRepliesContentMode) {
+                        m_contentMode == CommentRepliesContentMode ||
+                        m_contentMode == DynamicDetailContentMode) {
                         m_networkStage = NetworkComplete;
                     } else {
                         m_networkStage = FetchingContentThumbnail;
@@ -1813,16 +1938,20 @@ void WiliwiliWidget::timerEvent(QTimerEvent *event)
                     }
                 } else {
                     if ((m_contentMode == CommentsContentMode ||
+                         m_contentMode == DynamicDetailContentMode ||
                          m_contentMode == CommentRepliesContentMode) &&
                         apiCode == -352 &&
                         !m_commentLegacyFallback) {
                         m_commentLegacyFallback = true;
-                        if (m_contentMode == CommentsContentMode) {
+                        if (m_contentMode == CommentsContentMode ||
+                            m_contentMode == DynamicDetailContentMode) {
                             const int legacySort =
                                 m_commentMode == 3 ? 2 : 0;
                             m_contentEndpoint = QString::fromLatin1(
                                 "https://api.bilibili.com/x/v2/reply"
-                                "?type=1&pn=1&ps=20&sort=%1&nohot=0&oid=%2")
+                                "?type=%1&pn=1&ps=20&sort=%2&nohot=0&oid=%3")
+                                .arg(m_contentMode == DynamicDetailContentMode
+                                    ? m_dynamicCommentType : 1)
                                 .arg(legacySort).arg(m_contentSubjectId);
                         } else {
                             m_contentEndpoint = QString::fromLatin1(
@@ -1841,7 +1970,8 @@ void WiliwiliWidget::timerEvent(QTimerEvent *event)
                         event->accept();
                         return;
                     }
-                    if (!m_contentAppend)
+                    if (!m_contentAppend &&
+                        m_contentMode != DynamicDetailContentMode)
                         m_contentScreen.setItems(items);
                     m_contentCanLoadMore = false;
                     m_contentScreen.setCanLoadMore(false);
@@ -1883,6 +2013,32 @@ void WiliwiliWidget::timerEvent(QTimerEvent *event)
                 }
                 ++m_contentImageIndex;
                 startNextContentThumbnail();
+            } else if (m_networkStage == FetchingDynamicThumbnail) {
+                int imageHandle = -1;
+                int imageWidth = 0;
+                int imageHeight = 0;
+                if (result.httpStatus == 200 &&
+                    !result.body.isEmpty() && m_context) {
+                    makeCurrent();
+                    imageHandle = nvgCreateImageMem(
+                        m_context, 0,
+                        reinterpret_cast<unsigned char *>(
+                            const_cast<char *>(result.body.constData())),
+                        result.body.size());
+                    if (imageHandle > 0) {
+                        nvgImageSize(m_context, imageHandle,
+                                     &imageWidth, &imageHeight);
+                    }
+                    doneCurrent();
+                }
+                if (imageHandle > 0) {
+                    m_sectionImageHandles.append(imageHandle);
+                    m_sectionScreen.setItemImage(
+                        m_dynamicThumbnailIndex, imageHandle,
+                        imageWidth, imageHeight);
+                }
+                ++m_dynamicThumbnailIndex;
+                startNextDynamicThumbnail();
             } else if (m_networkStage == FetchingNetworkDiagnostic) {
                 QString mixin;
                 QString parseError;
@@ -1930,6 +2086,8 @@ void WiliwiliWidget::timerEvent(QTimerEvent *event)
                 if (parsed) {
                     const bool append = dynamic
                         ? m_dynamicAppend : m_messageAppend;
+                    const int previousCount =
+                        m_sectionScreen.items().size();
                     if (dynamic)
                         qDebug() << "WW:DYNAMIC_READY" << result.httpStatus
                                  << apiCode << sectionItems.size()
@@ -1946,6 +2104,8 @@ void WiliwiliWidget::timerEvent(QTimerEvent *event)
                             ++m_dynamicPage;
                         m_dynamicAppend = false;
                         m_sectionScreen.setCanLoadMore(m_dynamicHasMore);
+                        m_dynamicThumbnailIndex = append
+                            ? previousCount : 0;
                     } else {
                         if (m_messageType == 3) {
                             m_chatBeginTimestamp = nextChatTimestamp;
@@ -1969,6 +2129,10 @@ void WiliwiliWidget::timerEvent(QTimerEvent *event)
                                       .arg(sectionItems.size())
                                 : QString::fromLatin1("SYNC H200 / %1 ITEMS")
                                       .arg(sectionItems.size()));
+                    if (dynamic && m_contentImageLimit > 0) {
+                        m_networkStage = FetchingDynamicThumbnail;
+                        startNextDynamicThumbnail();
+                    }
                 } else {
                     if (!(dynamic ? m_dynamicAppend : m_messageAppend))
                         m_sectionScreen.clearItems();
@@ -1989,7 +2153,10 @@ void WiliwiliWidget::timerEvent(QTimerEvent *event)
                     qDebug() << "WW:SECTION_FAILED" << dynamic
                              << result.httpStatus << apiCode << parseError;
                 }
-                m_networkStage = NetworkComplete;
+                if (m_networkStage == FetchingDynamic ||
+                    m_networkStage == FetchingMessages) {
+                    m_networkStage = NetworkComplete;
+                }
             }
         }
 
@@ -2198,6 +2365,18 @@ void WiliwiliWidget::clearContentImages()
     m_contentScreen.setItemImages(emptySlots);
 }
 
+void WiliwiliWidget::clearSectionImages()
+{
+    if (m_context && !m_sectionImageHandles.isEmpty()) {
+        makeCurrent();
+        int index;
+        for (index = 0; index < m_sectionImageHandles.size(); ++index)
+            nvgDeleteImage(m_context, m_sectionImageHandles.at(index));
+        doneCurrent();
+    }
+    m_sectionImageHandles.clear();
+}
+
 void WiliwiliWidget::startBilibiliFeed(bool append, bool manualRefresh)
 {
     const HomeScreen::Category category = m_homeScreen.category();
@@ -2325,6 +2504,49 @@ void WiliwiliWidget::startNextContentThumbnail()
     m_networkStage = NetworkComplete;
 }
 
+void WiliwiliWidget::startNextDetailThumbnail()
+{
+    const QVector<RecommendVideoResultCompat> &items =
+        m_detailScreen.recommendations();
+    const int maximum = qMin(items.size(), 8);
+    // Detail screens keep their image handles alive so Back can restore the
+    // previous screen without re-downloading. Bound that history on devices
+    // with a small graphics heap; later rows retain the lightweight fallback.
+    if (m_detailImageHandles.size() >= 48) {
+        m_networkStage = NetworkComplete;
+        return;
+    }
+    while (m_detailThumbnailIndex < maximum) {
+        const QString endpoint = thumbnailUrl(
+            items.at(m_detailThumbnailIndex).pic);
+        if (!endpoint.isEmpty() &&
+            m_transport.startGet(
+                QUrl(endpoint).toEncoded(), 12000, 512 * 1024)) {
+            return;
+        }
+        ++m_detailThumbnailIndex;
+    }
+    m_networkStage = NetworkComplete;
+}
+
+void WiliwiliWidget::startNextDynamicThumbnail()
+{
+    const QVector<ContentItemCompat> &items = m_sectionScreen.items();
+    const int maximum = qMin(items.size(), m_contentImageLimit);
+    while (m_dynamicThumbnailIndex < maximum) {
+        const QString endpoint = dynamicImageUrl(
+            items.at(m_dynamicThumbnailIndex).mediaPicture);
+        if (!endpoint.isEmpty() &&
+            m_transport.startGet(
+                QUrl(endpoint).toEncoded(), 12000, 1024 * 1024,
+                LoginSession::requestCookieHeader())) {
+            return;
+        }
+        ++m_dynamicThumbnailIndex;
+    }
+    m_networkStage = NetworkComplete;
+}
+
 void WiliwiliWidget::startVideoDetail(int index)
 {
     if (index < 0 || index >= m_liveCards.size())
@@ -2356,15 +2578,17 @@ void WiliwiliWidget::startVideoDetail(int index)
         ? m_cardImageHandles.at(index)
         : m_cardPlaceholderHandle;
     m_detailScreen.setImageHandle(imageHandle);
+    m_detailScreen.setRecommendations(
+        QVector<RecommendVideoResultCompat>());
     m_detailScreen.setNetworkStatus(QString::fromLatin1("DETAIL:LOAD"));
 
     const QString endpoint = QString::fromLatin1("https:") +
-        QString::fromStdString(nikiniki::BilibiliEndpoint::Detail) +
+        QString::fromStdString(nikiniki::BilibiliEndpoint::DetailAll) +
         QString::fromLatin1("?bvid=") +
         QString::fromLatin1(QUrl::toPercentEncoding(card.bvid));
     m_networkStage = FetchingDetail;
     if (!m_transport.startGet(
-            QUrl(endpoint).toEncoded(), 30000, 768 * 1024)) {
+            QUrl(endpoint).toEncoded(), 30000, 1536 * 1024)) {
         m_detailScreen.setNetworkStatus(QString::fromLatin1("DETAIL:INIT"));
         m_networkStage = NetworkComplete;
     }
@@ -2399,10 +2623,12 @@ void WiliwiliWidget::startVideoDetail(const ContentItemCompat &item)
     detail.owner.name = item.subtitle;
     m_detailScreen.setVideo(detail);
     m_detailScreen.setImageHandle(m_cardPlaceholderHandle);
+    m_detailScreen.setRecommendations(
+        QVector<RecommendVideoResultCompat>());
     m_detailScreen.setNetworkStatus(QString::fromLatin1("DETAIL:LOAD"));
 
     QString endpoint = QString::fromLatin1("https:") +
-        QString::fromStdString(nikiniki::BilibiliEndpoint::Detail);
+        QString::fromStdString(nikiniki::BilibiliEndpoint::DetailAll);
     if (!item.id.isEmpty()) {
         endpoint += QString::fromLatin1("?bvid=") +
             QString::fromLatin1(QUrl::toPercentEncoding(item.id));
@@ -2411,7 +2637,7 @@ void WiliwiliWidget::startVideoDetail(const ContentItemCompat &item)
     }
     m_networkStage = FetchingDetail;
     if (!m_transport.startGet(
-            QUrl(endpoint).toEncoded(), 30000, 768 * 1024,
+            QUrl(endpoint).toEncoded(), 30000, 1536 * 1024,
             LoginSession::cookieHeader())) {
         m_detailScreen.setNetworkStatus(QString::fromLatin1("DETAIL:INIT"));
         m_networkStage = NetworkComplete;
@@ -3037,6 +3263,7 @@ void WiliwiliWidget::requestDynamicFeed(bool append)
         m_dynamicPage = 1;
         m_dynamicOffset.clear();
         m_dynamicHasMore = false;
+        clearSectionImages();
         m_sectionScreen.clearItems();
     }
     m_dynamicAppend = append;
@@ -3140,7 +3367,12 @@ void WiliwiliWidget::loadMoreSection()
 
 void WiliwiliWidget::openSectionItem(int index)
 {
-    const QString id = m_sectionScreen.itemId(index);
+    const QVector<ContentItemCompat> &sectionItems =
+        m_sectionScreen.items();
+    if (index < 0 || index >= sectionItems.size())
+        return;
+    const ContentItemCompat &selectedItem = sectionItems.at(index);
+    const QString id = selectedItem.id;
     const QString title = m_sectionScreen.itemTitle(index);
     const QString subtitle = m_sectionScreen.itemSubtitle(index);
     const QString description = m_sectionScreen.itemDescription(index);
@@ -3162,10 +3394,13 @@ void WiliwiliWidget::openSectionItem(int index)
         return;
     }
 
-    // A non-video dynamic or inbox source still deserves a readable landing
-    // page.  The full dynamic-detail/comment API is intentionally left out of
-    // this lightweight Symbian pass, but the selected event is no longer a
-    // dead card or falsely marked read.
+    if (m_navigation.selected() == NavigationRail::DynamicSection) {
+        openDynamicDetail(index);
+        return;
+    }
+
+    // Remaining non-chat inbox sources still deserve a readable landing page
+    // instead of a dead card or an item that is falsely marked as read.
     ContentItemCompat item;
     item.kind = TextContentItem;
     item.id = QString::fromLatin1("section-item");
@@ -3181,9 +3416,7 @@ void WiliwiliWidget::openSectionItem(int index)
     m_contentEndpoint.clear();
     m_contentPageTemplate.clear();
     m_contentCanLoadMore = false;
-    m_contentScreen.setTitle(
-        m_navigation.selected() == NavigationRail::DynamicSection
-            ? QString::fromUtf8("动态内容") : QString::fromUtf8("消息内容"));
+    m_contentScreen.setTitle(QString::fromUtf8("消息内容"));
     m_contentScreen.setHeaderAction(QString());
     QVector<ContentItemCompat> items;
     items.append(item);
@@ -3192,6 +3425,89 @@ void WiliwiliWidget::openSectionItem(int index)
     m_contentScreen.setStatus(QString());
     m_currentScreen = ContentScreenView;
     m_networkStage = NetworkComplete;
+}
+
+void WiliwiliWidget::openDynamicDetail(int index)
+{
+    const QVector<ContentItemCompat> &sectionItems =
+        m_sectionScreen.items();
+    if (index < 0 || index >= sectionItems.size())
+        return;
+    const ContentItemCompat &source = sectionItems.at(index);
+    NavigationEntry topEntry;
+    topEntry.screen = TopLevelScreenView;
+    topEntry.restoreHome = false;
+    pushNavigation(topEntry);
+
+    m_dynamicDetailItem = source;
+    m_dynamicDetailItem.id = QString::fromLatin1("dynamic-detail");
+    m_dynamicDetailItem.badge = source.subtitle;
+    m_dynamicDetailItem.subtitle = source.title;
+    m_dynamicDetailImageHandle = m_sectionScreen.itemImage(index);
+    m_dynamicCommentType = source.commentType > 0
+        ? source.commentType : 17;
+    m_contentMode = DynamicDetailContentMode;
+    m_contentSubjectId = source.commentId;
+    m_commentMode = 3;
+    m_commentLegacyFallback = false;
+    m_contentAppend = false;
+    m_contentCanLoadMore = false;
+    m_contentPageTemplate.clear();
+    m_contentScreen.setTitle(QString::fromUtf8("动态详情"));
+    m_contentScreen.setHeaderAction(QString());
+    m_contentScreen.setSecondaryHeaderAction(QString());
+    QVector<ContentItemCompat> detailItems;
+    detailItems.append(m_dynamicDetailItem);
+    m_contentScreen.setItems(detailItems);
+    QVector<int> images;
+    images.append(m_dynamicDetailImageHandle);
+    m_contentScreen.setItemImages(images);
+    m_contentScreen.setCanLoadMore(false);
+    m_currentScreen = ContentScreenView;
+
+    const QString dynamicId = source.sourceId.trimmed();
+    if (dynamicId.isEmpty()) {
+        qDebug() << "WW:DYNAMIC_DETAIL_NO_ID";
+        startDynamicComments();
+        return;
+    }
+    m_contentScreen.setStatus(QString::fromUtf8("正在加载动态正文..."));
+    const QString endpoint = QString::fromLatin1("https:") +
+        QString::fromStdString(nikiniki::BilibiliEndpoint::DynamicDetail) +
+        QString::fromLatin1("?id=") +
+        QString::fromLatin1(QUrl::toPercentEncoding(dynamicId));
+    m_networkStage = FetchingDynamicDetail;
+    if (!m_transport.startGet(
+            QUrl(endpoint).toEncoded(), 30000, 2 * 1024 * 1024,
+            LoginSession::requestCookieHeader())) {
+        qDebug() << "WW:DYNAMIC_DETAIL_INIT_FAILED";
+        startDynamicComments();
+    }
+}
+
+void WiliwiliWidget::startDynamicComments()
+{
+    if (m_contentSubjectId == 0) {
+        m_contentEndpoint.clear();
+        m_contentScreen.setStatus(
+            QString::fromUtf8("正文已显示；该动态没有可用评论标识"));
+        m_networkStage = NetworkComplete;
+        return;
+    }
+    m_contentScreen.setStatus(QString::fromUtf8("正在加载评论..."));
+    m_contentEndpoint = QString::fromLatin1(
+        "https://api.bilibili.com/x/v2/reply/main"
+        "?mode=3&next=0&plat=1&type=%1&oid=%2")
+        .arg(m_dynamicCommentType)
+        .arg(m_contentSubjectId);
+    m_contentCookies = LoginSession::requestCookieHeader();
+    m_networkStage = FetchingContent;
+    if (!m_transport.startGet(
+            QUrl(m_contentEndpoint).toEncoded(), 30000,
+            1024 * 1024, m_contentCookies)) {
+        m_contentScreen.setStatus(QString::fromLatin1("DYNAMIC:INIT"));
+        m_networkStage = NetworkComplete;
+    }
 }
 
 void WiliwiliWidget::requestNetworkDiagnostic()
@@ -3412,6 +3728,8 @@ void WiliwiliWidget::positionSearchEditor()
     const QPoint globalTopLeft = mapToGlobal(QPoint(left, 8));
     m_searchEdit->setGeometry(
         globalTopLeft.x(), globalTopLeft.y(), editorWidth, 42);
+    if (m_searchButton)
+        m_searchButton->setGeometry(editorWidth - 64, 3, 60, 36);
 }
 
 void WiliwiliWidget::requestContent(
@@ -3484,7 +3802,16 @@ void WiliwiliWidget::refreshContent()
         m_contentEndpoint.replace(QString::fromLatin1("{page}"),
                                   QString::fromLatin1("1"));
     }
-    m_contentScreen.setItems(QVector<ContentItemCompat>());
+    if (m_contentMode == DynamicDetailContentMode) {
+        QVector<ContentItemCompat> detailItems;
+        detailItems.append(m_dynamicDetailItem);
+        m_contentScreen.setItems(detailItems);
+        QVector<int> images;
+        images.append(m_dynamicDetailImageHandle);
+        m_contentScreen.setItemImages(images);
+    } else {
+        m_contentScreen.setItems(QVector<ContentItemCompat>());
+    }
     m_contentScreen.setStatus(QString::fromUtf8("正在刷新..."));
     if (BilibiliWbi::requiresSigning(m_contentEndpoint) &&
         m_wbiMixinKey.isEmpty()) {
@@ -3949,6 +4276,10 @@ void WiliwiliWidget::openContentItem(int index)
     } else if (m_contentMode == CommentRepliesContentMode) {
         // Keep taps inside the thread; Back reloads the root-comment list.
         return;
+    } else if (m_contentMode == DynamicDetailContentMode) {
+        // Dynamic comment threads currently have no separate reply endpoint
+        // state. Keep taps on the detail/comment list inside this screen.
+        return;
     } else if (item.kind == VideoContentItem) {
         startVideoDetail(item);
     } else if (item.kind == FolderContentItem &&
@@ -3986,17 +4317,25 @@ void WiliwiliWidget::openContentItem(int index)
 
 void WiliwiliWidget::clearAppCache()
 {
-    // The only on-disk cache in this port is the temporary local MP4 used by
-    // OpenFileL playback and the bounded download fallback. Normal close
-    // removes it; this option cleans leftovers from crashes/force exits.
+    // Local MMF staging is bounded and normally removed at session close.
+    // Clean both VOD MP4 and live FLV leftovers after crashes/force exits.
     qint64 freedBytes = 0;
-    const QString cachePath = QDir::tempPath() +
-        QString::fromLatin1("/wiliwili_player_cache.mp4");
-    const QFileInfo cacheInfo(cachePath);
-    if (cacheInfo.exists() && cacheInfo.isFile()) {
-        freedBytes = cacheInfo.size();
-        QFile::remove(cachePath);
-        qDebug() << "WW:CACHE_CLEARED" << freedBytes << cachePath;
+    QStringList cachePaths;
+    cachePaths.append(QDir::tempPath() +
+        QString::fromLatin1("/wiliwili_player_cache.mp4"));
+    cachePaths.append(QDir::tempPath() +
+        QString::fromLatin1("/wiliwili_live_cache.flv"));
+    int cacheIndex;
+    for (cacheIndex = 0; cacheIndex < cachePaths.size(); ++cacheIndex) {
+        const QString cachePath = cachePaths.at(cacheIndex);
+        const QFileInfo cacheInfo(cachePath);
+        if (cacheInfo.exists() && cacheInfo.isFile()) {
+            const qint64 fileBytes = cacheInfo.size();
+            if (QFile::remove(cachePath)) {
+                freedBytes += fileBytes;
+                qDebug() << "WW:CACHE_CLEARED" << fileBytes << cachePath;
+            }
+        }
     }
     m_sectionScreen.setStatus(
         freedBytes > 0
@@ -4016,6 +4355,21 @@ QString WiliwiliWidget::thumbnailUrl(const QString &source) const
     if (!result.startsWith(QString::fromLatin1("https://")))
         return QString();
     result += QString::fromLatin1("@224w_126h_1c.jpg");
+    return result;
+}
+
+QString WiliwiliWidget::dynamicImageUrl(const QString &source) const
+{
+    QString result = source.trimmed();
+    if (result.startsWith(QString::fromLatin1("//")))
+        result.prepend(QString::fromLatin1("https:"));
+    else if (result.startsWith(QString::fromLatin1("http://")))
+        result.replace(0, 7, QString::fromLatin1("https://"));
+    if (!result.startsWith(QString::fromLatin1("https://")))
+        return QString();
+    // Width-only resizing preserves portrait, square and landscape dynamics.
+    // JPEG output remains decodable by the bundled NanoVG image loader.
+    result += QString::fromLatin1("@320w.jpg");
     return result;
 }
 
@@ -4062,7 +4416,8 @@ void WiliwiliWidget::mouseMoveEvent(QMouseEvent *event)
     } else if (m_navigation.selected() != NavigationRail::AccountSection) {
         m_sectionScreen.pointerMove(event->pos());
     }
-    updateGL();
+    // Coalesce high-frequency drag events into one pending GL repaint.
+    update();
     event->accept();
 }
 
@@ -4093,6 +4448,22 @@ void WiliwiliWidget::mouseReleaseEvent(QMouseEvent *event)
                    action == DetailScreen::FavoriteAction ||
                    action == DetailScreen::WatchLaterAction) {
             postVideoAction(action);
+        } else if (DetailScreen::isRecommendationAction(action)) {
+            const int index = DetailScreen::recommendationIndex(action);
+            const QVector<RecommendVideoResultCompat> &recommendations =
+                m_detailScreen.recommendations();
+            if (index >= 0 && index < recommendations.size()) {
+                const RecommendVideoResultCompat &video =
+                    recommendations.at(index);
+                ContentItemCompat item;
+                item.kind = VideoContentItem;
+                item.id = video.bvid;
+                item.numericId = video.id;
+                item.title = video.title;
+                item.subtitle = video.owner.name;
+                item.picture = video.pic;
+                startVideoDetail(item);
+            }
         }
     } else if (m_currentScreen == ContentScreenView) {
         const int action = m_contentScreen.pointerRelease(event->pos());
@@ -4275,6 +4646,30 @@ void WiliwiliWidget::keyPressEvent(QKeyEvent *event)
         m_videoPlayer->handleForegroundKey(event);
         return;
     }
+    if (event->key() == Qt::Key_VolumeUp ||
+        event->key() == Qt::Key_VolumeDown) {
+        const int delta = event->key() == Qt::Key_VolumeUp ? 5 : -5;
+        int volume = 80;
+        if (m_videoPlayer) {
+            m_videoPlayer->adjustPersistentVolume(delta);
+        } else {
+            QSettings settings(
+                QSettings::IniFormat, QSettings::UserScope,
+                QString::fromLatin1("wiliwili"),
+                QString::fromLatin1("wiliwili_symbian"));
+            volume = qBound(0, settings.value(
+                QString::fromLatin1("player/volume"), 80).toInt() +
+                delta, 100);
+            settings.setValue(
+                QString::fromLatin1("player/volume"), volume);
+            settings.sync();
+            m_homeScreen.setNetworkStatus(
+                QString::fromUtf8("音量 %1%").arg(volume));
+            update();
+        }
+        event->accept();
+        return;
+    }
     const bool isBackKey =
         event->key() == Qt::Key_Back ||
         event->key() == Qt::Key_Escape ||
@@ -4318,6 +4713,16 @@ void WiliwiliWidget::closeEvent(QCloseEvent *event)
 
 bool WiliwiliWidget::eventFilter(QObject *watched, QEvent *event)
 {
+    if (watched == m_searchButton &&
+        event->type() == QEvent::MouseButtonRelease) {
+        QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
+        if (mouseEvent->button() == Qt::LeftButton &&
+            m_searchButton->rect().contains(mouseEvent->pos())) {
+            submitSearch(m_searchEdit ? m_searchEdit->text() : QString());
+            mouseEvent->accept();
+            return true;
+        }
+    }
     if (watched == m_searchEdit && event->type() == QEvent::KeyPress) {
         QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
         if (keyEvent->key() == Qt::Key_Return ||

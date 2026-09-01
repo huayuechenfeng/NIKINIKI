@@ -1,7 +1,7 @@
 # NIKINIKI 播放器架构
 
 > 状态：Active
-> 适用版本：1.1 当前主线
+> 适用版本：1.1 正式版与 1.2 开发主线
 > 验证基线：Nokia 603 / Nokia Belle
 > 本页职责：播放器当前实现的唯一结构说明
 
@@ -41,8 +41,26 @@ Bilibili progressive MP4
 
 播放会话开始时锁定当次策略，设置变更从下一次播放生效。两种 `OpenFileL()` 路径共用单一、
 有 96 MiB 上限的临时缓存，关闭播放器时删除。当前 Range/FFmpeg 管线只支持 progressive MP4；
-直播仍固定使用原有 `OpenUrlL()` + MMF，若选择了不适用于直播的策略会记录
+直播首先使用 `OpenUrlL()` + MMF，若选择了不适用于直播的策略会记录
 `PLAYER_POLICY_LIVE_USES_OPENURL_MMF`，不会伪装成已经执行。
+
+直播选源沿用上游 wiliwili 的 `getRoomPlayInfo`、`g_qn_desc` 和重新请求画质语义，但只接受
+AVC。V2 地址按 HTTP-stream/FLV、HLS/TS、HLS/fMP4 排序，并保留 CDN 与 HTTP/HTTPS 备用；
+旧 FLV 接口只在 V2 解析失败时使用。首个 FLV 源依次尝试 `video/flv`、`video/x-flv`、空 MIME。
+2026-09-01 Nokia 603 CODA 证明前两者在 `OpenUrlL()` 完成回调返回 `KErrNotSupported (-5)`，
+空 MIME 虽 open 成功却在 `Prepare` 返回 `-12008`；同一会话的后续 FLV/HLS 地址重复得到
+`-5/-34`，所以不能把 CDN 数量误当作容器支持。当前状态机在首个 FLV 的三种远程探测均失败后
+立即单向进入手机本机增长文件 `OpenFileL()`，不再先遍历十二条远程地址。第二轮 CODA 在下载到
+8,432,361 字节时记录 `NATIVE_MMF_FILE_HANDLE share-read-write 0`，随后本地 FLV 的
+`NATIVE_MMF_OPEN_COMPLETE -5`。因此共享冲突已排除，该固件缺少可用 FLV controller，增长
+FLV→MMF 路线已被否定。当前候选在手机本地增量解析 FLV tag，从 AVCDecoderConfigurationRecord
+取出 SPS/PPS 和 NAL 长度，把每个 AVC 包转成完整 Annex-B access unit 交给现有 FFmpeg/RGB565
+视频表面；AAC sequence header 转为 ADTS 头，raw AAC 写入已有共享 `RFile` 增长文件，MMF 只负责
+音频和主时钟。起播条件是约 96 KiB AAC 且至少 45 个由 IDR 开始的视频 AU。解析、缓冲和
+视频待处理队列都有硬上限，AAC 临时文件上限为 64 MiB；HTTP 30x 最多跟随三次，当前
+CDN 失败后只向后续 FLV CDN 前进。
+该路径不使用远程桥接、远程重封装或转码；GCCE Debug/Release 已编译通过，但共享增长 ADTS 的
+MMF controller 接受、持续读取和真机音画同步仍是发布前验收门。
 
 `OpenFileL()` 边下边播是为区分旧机型 MMF streaming controller 与本地 controller 而加入的
 产品可选路径。最初的 `QFile` 写入 + 按路径 `OpenFileL()` 已在 Nokia 603 真机复现
@@ -59,6 +77,37 @@ Bilibili progressive MP4
 
 preflight 不调用 Configure、Initialize、Start、DSA、post-processor 或 coded-data write；
 临时 DevVideo 对象在返回前销毁。它是固件能力查询，不是第二套播放器。
+
+## 可选 ref7 扩展边界
+
+H.264 ref7 研究已经证明两条正确路径，但它们与当前主线的集成程度不同。
+
+### 手动 admission patch
+
+深度破解设备可以手动启用 `symbian/patches/h264-ref7/` 中的 RomPatcher+ 补丁。补丁只把 IVE
+host AVC parser 的第一道 `cmp refs,#6` 改为 `cmp refs,#7`。主程序仍把真实 SPS/PPS/AU 交给
+preflight 和 MMF：
+
+```text
+real header -> patched HwDevice accepts -> existing MMF path
+```
+
+应用不安装、探测或自动启用补丁。补丁不随 SIS 分发；未启用时的 MMF/FFmpeg 单向回退完全不变。
+目前只有 Nokia 603 SW113 真机通过，其他固件的静态特征匹配不能视为设备支持。
+
+### Direct Header/Submit split
+
+独立 probe 已在同一 DevVideo 会话中用 fake-ref3 完成 Header/Configure，随后提交未经修改的
+ORIGINAL_R7 全部 100 AU，并得到 99/99 PC-golden 匹配 picture。该方法是成功的第二条解锁路径，
+但不能直接放进当前临时 preflight：preflight 对象会在返回前销毁，随后 MMF 建立的新 decoder 会话
+不会继承其 admission 状态。
+
+若未来产品化，必须建立由应用持有的 Direct DevVideo decoder、memory-picture 显示、AAC 主时钟、
+seek 和生命周期后端。只伪造当前 preflight，或把 fake SPS 持续送入 MMF/decoder，均不是正确实现；
+full-SPS fake 已从第 7 帧开始稳定 corruption。
+
+最终证据和术语见
+[H.264 ref7 结题报告](../research/player/H264_REF7_HARDWARE_DECODE_FINAL_REPORT_ZH.md)。
 
 ## MMF 路径
 
@@ -103,6 +152,13 @@ single transparent ARGB overlay: danmaku + controls + input
 - 完整下载模式在开始播放前复用同一个 ARGB overlay 绘制准备状态、文件大小、已下载量、
   百分比和进度条，不创建额外顶层窗口；
 - 弹幕、控制和触摸直接使用 640×360 坐标；
+- XML mode 1 普通弹幕从右向左，mode 6 反向弹幕从左向右，mode 4/5 底部/顶部弹幕保持居中；
+  滚动弹幕以首次实际绘制的媒体位置作为显示锚点，网络晚到或 UI 长帧不会让第一可见帧从屏幕
+  中央开始；文字宽度在弹幕列表到达时预计算；
+- 播放器右侧提供与控制栏一致的暗色/粉色竖向音量滑块；播放器方向键及主页实体音量键共用
+  `player/volume` 持久音量；
+- 当控制、下载进度和当前时间窗内弹幕都不可见时，ARGB overlay 保持透明但停止无意义的
+  25 fps 整屏清除；内容消失时仍额外重绘一帧清除残留；
 - `overlayIntermediateMs` 和 `overlayRotateMs` 应为 0；
 - 历史 GLES 三平面上传和整帧 90° ARGB 旋转不在普通路径中。
 
@@ -167,6 +223,9 @@ pause、seek、倍速、媒体会话变化会使缓存失效。普通 MMF 播放
 ## 失败与回退
 
 - Range 或 preflight 获取失败：记录原因并保守尝试 MMF；
+- 直播 FLV/HLS 的远程 `OpenUrlL()` 和本地 FLV `OpenFileL()` 都已在 Nokia 603 上得到容器级
+  `-5`；不再重试这两条 MMF 容器路线。手机本地解复用失败时只沿剩余 FLV CDN 单向重试，
+  不能回到 HLS/远程 MMF 形成循环，也不能把 GCCE 编译通过记成设备可播放；
 - 全程软解时 Range/MP4 解析失败：显示 `SWERR`，不回退 MMF 视频；
 - OpenFile 下载失败：按备用 URL 单向尝试，全部失败后显示 `DLERR`；
 - MMF 硬件视频不可用且 preflight 已拒绝：进入本机 FFmpeg；

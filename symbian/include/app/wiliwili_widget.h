@@ -28,6 +28,7 @@ class QObject;
 class QTimerEvent;
 class QUrl;
 class QLineEdit;
+class QPushButton;
 struct NVGcontext;
 
 namespace wiliwili {
@@ -65,8 +66,11 @@ private:
         bool append = false, bool manualRefresh = false);
     void clearDynamicImages();
     void clearContentImages();
+    void clearSectionImages();
     void startNextThumbnail();
     void startNextContentThumbnail();
+    void startNextDetailThumbnail();
+    void startNextDynamicThumbnail();
     void startVideoDetail(int index);
     void startVideoDetail(const ContentItemCompat &item);
     void showHome();
@@ -129,6 +133,8 @@ private:
     void requestChatMessages(quint64 talkerId, const QString &name);
     void loadMoreSection();
     void openSectionItem(int index);
+    void openDynamicDetail(int index);
+    void startDynamicComments();
     void startPostAction(
         int action,
         const QString &endpoint,
@@ -149,12 +155,14 @@ private:
     void scheduleForegroundRestore();
     void scheduleUiAction(int action);
     QString thumbnailUrl(const QString &source) const;
+    QString dynamicImageUrl(const QString &source) const;
     QString probeResultText(const QString &tag) const;
 
     enum NetworkStage {
         FetchingHome,
         FetchingThumbnail,
         FetchingDetail,
+        FetchingDetailThumbnail,
         FetchingPlayback,
         FetchingLivePlayback,
         FetchingLegacyLivePlayback,
@@ -165,6 +173,8 @@ private:
         FetchingProfileFallback,
         FetchingProfileStats,
         FetchingDynamic,
+        FetchingDynamicDetail,
+        FetchingDynamicThumbnail,
         FetchingMessages,
         FetchingHomeWbiKeys,
         FetchingWbiKeys,
@@ -212,6 +222,7 @@ private:
         UserVideosContentMode,
         FollowingContentMode,
         ChatMessagesContentMode,
+        DynamicDetailContentMode,
         SectionItemContentMode
     };
 
@@ -329,6 +340,7 @@ private:
     bool m_landscapeWindowProbeActive;
 #endif
     QLineEdit *m_searchEdit;
+    QPushButton *m_searchButton;
     NetworkStage m_networkStage;
     int m_homeFreshIndex;
     int m_homeRequestedFreshIndex;
@@ -339,6 +351,8 @@ private:
     int m_thumbnailIndex;
     int m_thumbnailSuccessCount;
     int m_contentImageIndex;
+    int m_detailThumbnailIndex;
+    int m_dynamicThumbnailIndex;
     int m_contentImageGeneration;
     int m_contentImageLimit;
     int m_playbackMode;
@@ -368,6 +382,9 @@ private:
     quint64 m_contentSubjectId;
     int m_commentMode;
     bool m_commentLegacyFallback;
+    ContentItemCompat m_dynamicDetailItem;
+    int m_dynamicDetailImageHandle;
+    int m_dynamicCommentType;
     int m_messageType;
     int m_dynamicPage;
     QString m_dynamicOffset;
@@ -390,6 +407,8 @@ private:
     QVector<int> m_cardImageHandles;
     QVector<int> m_dynamicImageHandles;
     QVector<int> m_contentImageHandles;
+    QVector<int> m_detailImageHandles;
+    QVector<int> m_sectionImageHandles;
     MemorySample m_memory;
     HomeScreen m_homeScreen;
     DetailScreen m_detailScreen;

@@ -2,7 +2,9 @@
 #define WILIWILI_SYMBIAN_DETAIL_SCREEN_H
 
 #include <QtCore/QPoint>
+#include <QtCore/QRectF>
 #include <QtCore/QString>
+#include <QtCore/QVector>
 
 #include "model/video_detail.h"
 #include "ui/view_node.h"
@@ -13,11 +15,14 @@ class DetailScreen
 {
 public:
     struct State {
-        State() : pageIndex(0), imageHandle(-1) {}
+        State() : pageIndex(0), imageHandle(-1), scroll(0.0f) {}
 
         VideoDetailCompat video;
         int pageIndex;
         int imageHandle;
+        QVector<RecommendVideoResultCompat> recommendations;
+        QVector<int> recommendationImages;
+        float scroll;
         QString networkStatus;
     };
 
@@ -31,7 +36,8 @@ public:
         CoinAction,
         FavoriteAction,
         WatchLaterAction,
-        PageAction
+        PageAction,
+        RecommendationActionBase = 100
     };
 
     DetailScreen();
@@ -40,6 +46,12 @@ public:
     void initialize(int fontId, int placeholderImageHandle);
     void setVideo(const VideoDetailCompat &video);
     void setImageHandle(int imageHandle);
+    void setRecommendations(
+        const QVector<RecommendVideoResultCompat> &recommendations);
+    void setRecommendationImage(int index, int imageHandle);
+    const QVector<RecommendVideoResultCompat> &recommendations() const;
+    static bool isRecommendationAction(Action action);
+    static int recommendationIndex(Action action);
     void setNetworkStatus(const QString &status);
     const VideoDetailCompat &video() const;
     int selectedPageIndex() const;
@@ -65,11 +77,18 @@ private:
     void drawActionButton(
         NVGcontext *context, const QRectF &frame,
         const QString &label, bool accent) const;
+    void drawRecommendation(
+        NVGcontext *context, int index, const QRectF &frame) const;
 
     VideoDetailCompat m_video;
     int m_pageIndex;
     int m_fontId;
     int m_imageHandle;
+    QVector<RecommendVideoResultCompat> m_recommendations;
+    QVector<int> m_recommendationImages;
+    QVector<QRectF> m_recommendationHitBoxes;
+    float m_scroll;
+    float m_minScroll;
     QString m_networkStatus;
 
     BoxNode *m_header;
@@ -99,6 +118,7 @@ private:
     QRectF m_pageInfoHitBox;
     bool m_pressed;
     QPoint m_pressPosition;
+    QPoint m_lastPosition;
 };
 
 } // namespace wiliwili

@@ -20,6 +20,11 @@ public:
         QString *errorText,
         QString *nextOffset,
         bool *hasMore);
+    static bool parseDynamicDetail(
+        const QByteArray &body,
+        ContentItemCompat *item,
+        int *apiCode,
+        QString *errorText);
     static bool parseMessages(
         const QByteArray &body,
         QVector<ContentItemCompat> *items,

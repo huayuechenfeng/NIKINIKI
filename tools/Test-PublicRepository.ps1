@@ -112,7 +112,7 @@ Assert-Condition `
 
 $textExtensions = @(
     '.c', '.cpp', '.h', '.hpp', '.pro', '.qrc', '.ps1', '.md', '.yml',
-    '.yaml', '.json', '.mjs', '.py', '.txt')
+    '.yaml', '.json', '.mjs', '.py', '.txt', '.rmp', '.tsv')
 $textFiles = $trackedFiles | Where-Object { $textExtensions -contains $_.Extension }
 $sourceBoundaryFiles = $textFiles | Where-Object {
     $_.RelativePath -like 'symbian/app/*' -or

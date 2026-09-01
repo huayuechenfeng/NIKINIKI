@@ -9,8 +9,14 @@
 </p>
 
 <p align="center">
-  <strong>1.1.0 · 播放策略与首次启动体验更新</strong>
+  <strong>1.2.0 · 首页流畅度与内容体验更新</strong>
 </p>
+
+> **重要兼容性公告（1.2）**：因尚未解决的播放黑屏 bug，NIKINIKI 1.2 暂时撤下对
+> Nokia N8 / E7 / X7 / C7 等初代 Symbian³ 设备的支持，也不建议在这些机型上安装或反馈为
+> 正常兼容。Nokia 603、700、701、808 等原生 Nokia Belle 设备不受此限制。
+> 项目近期会集中攻克该黑屏问题；长期目标仍是适配 Symbian^3 的全机型及原版 Symbian³、Anna、
+> Belle 全系统版本。
 
 > NIKINIKI 曾用名为 **wiliwili for Symbian³** / `wiliwili_symbian`。项目源自对
 > [xfangfang/wiliwili](https://github.com/xfangfang/wiliwili) 的 Symbian 移植与重构；
@@ -25,16 +31,15 @@
 本项目的开发过程中使用了 **vibecoding（AI 辅助编程）**。设计取舍、实机验证、
 构建与发布均由维护者确认。
 
-## 下载 1.1
+## 下载 1.2
 
-- [NIKINIKI 1.1.0 GitHub Release](https://github.com/huayuechenfeng/NIKINIKI/releases/tag/v1.1.0)
-- [直接下载正式 SIS](https://github.com/huayuechenfeng/NIKINIKI/releases/download/v1.1.0/NIKINIKI_1.1.0_release.sis)
-- [LGPL 重链接材料](https://github.com/huayuechenfeng/NIKINIKI/releases/download/v1.1.0/NIKINIKI_1.1.0_relink_materials.zip)
+- [NIKINIKI 1.2.0 GitHub Release](https://github.com/huayuechenfeng/NIKINIKI/releases/tag/v1.2.0)
+- [直接下载正式 SIS](https://github.com/huayuechenfeng/NIKINIKI/releases/download/v1.2.0/NIKINIKI_1.2.0_release.sis)
+- [LGPL 重链接材料](https://github.com/huayuechenfeng/NIKINIKI/releases/download/v1.2.0/NIKINIKI_1.2.0_relink_materials.zip)
 
 安装包大小、SHA-256、签名和重链接材料清单见
-[1.1.0 发布说明](docs/releases/RELEASE_1.1.0_ZH.md)。若新版本安装或启动异常，请到 QQ 群
-`977410275` 反馈，并可先继续使用
-[1.0.0](https://github.com/huayuechenfeng/NIKINIKI/releases/tag/v1.0.0)。
+[1.2.0 发布说明](docs/releases/RELEASE_1.2.0_ZH.md)。若新版本安装或启动异常，请到 QQ 群
+`977410275` 反馈；初代 Symbian³ 设备请保留使用 1.1.0，等待黑屏问题修复。
 
 ## 安装前置说明
 
@@ -48,14 +53,14 @@ Qt Mobility 1.2.x。完整顺序和运行库下载见[安装指南](docs/user/IN
 软件的正常使用、功能获取或源码开放：
 [爱发电支持 NIKINIKI](https://afdian.com/a/nankoku)。
 
-## 1.1 更新重点
+## 1.2 更新重点
 
-1.1 修复了首次安装后同步加载完整字体造成的长时间黑屏，并在设置页新增三种播放方式和
-三种解码方式。下载后播放现在会显示文件大小、已下载量、百分比和进度条；
-`OpenFileL` 边下边播也修复了文件共享冲突并增加到 8 MiB 起播预缓冲。
+1.2 优化首页卡片滚动：只绘制可见卡片并合并连续触摸刷新，滑动更稳定流畅。播放器增加与
+控制栏协调的右侧竖向音量滑块，主页实体音量键也会调整同一持久音量。
 
-N8 / E7 / X7 / C7 建议升级到 Nokia Belle，并在“设置 → 播放方式”中选择
-“`OpenFileL` 边下边播”，以避开部分旧机型 MMF 网络流式 controller 只有声音没有画面的情况。
+视频详情页新增可继续向下滑动浏览、点击的相关推荐；动态页修正图片和视频缩略图比例、
+可变卡片高度、图文/文字/专栏正文与评论区显示；评论昵称与等级图标不再重叠。普通滚动弹幕
+从右边缘进入，顶部/底部固定弹幕保持居中。
 
 ## NIKINIKI 是什么
 
@@ -82,14 +87,20 @@ Bilibili progressive MP4
 这避免了按照 `ref`、DPB、weighted prediction 等参数维护一张不断膨胀的“风险规则表”：
 先让设备自己的 Broadcom 插件判断能否接受真实码流，不能硬解时才进入软件路径。
 
+深度破解设备可以选择使用[实验性 ref7 admission 补丁](symbian/patches/h264-ref7/README_ZH.md)。
+它已在 Nokia 603 SW113 上验证，不随 SIS 安装、不允许自动启用；未破解或未启用补丁时，上述默认
+MMF/FFmpeg 路由完全不变。
+
 ## 已实现
 
 - 首页推荐、分区内容、动态、消息、搜索和视频详情；
 - 扫码登录、历史、收藏、稍后再看、关注和互动；
 - 普通 H.264/AAC 视频优先使用 Symbian MMF 硬件播放；
 - 硬件插件拒绝的部分现代 AVC 视频可在手机本机使用裁剪版 PPSSPP-FFmpeg 软解；
-- 播放/暂停、进度拖动、倍速、音量、清晰度和触摸控制；
+- 播放/暂停、进度拖动、倍速、音量、清晰度和触摸控制；播放器右侧音量滑块与主页实体音量键；
 - 滚动弹幕及播放器透明控制层；
+- 首页可见卡片渲染与合并刷新；视频详情页纵向相关推荐；
+- 自适应动态图文/专栏详情、评论区，以及避免昵称和等级图标重叠的评论排版；
 - 原生横屏播放器状态机，可从播放页正常返回并重复进入；
 - 播放方式可选网络流式、`OpenFileL` 边下边播和下载后播放；
 - 解码方式可选自动选择、全程硬解和全程软解；
@@ -101,9 +112,9 @@ Bilibili progressive MP4
 | 系统 / 设备 | 当前状态 |
 |---|---|
 | **Nokia 603 / Belle** | 主要开发与真机验证基线 |
-| Nokia Belle 其他机型 | 预期可运行；N8 / E7 / X7 / C7 推荐 Belle + `OpenFileL` 边下边播，欢迎反馈 |
-| Symbian Anna | 使用同一应用 SIS；需要 Qt 4.7.4 + Qt Mobility 1.2.x，真机覆盖仍在收集 |
-| 原版 Symbian³ | 使用同一应用 SIS；需要离线 Qt / Mobility 运行库，真机覆盖仍在收集 |
+| Nokia 700 / 701 / 808 等原生 Belle | 受支持；欢迎补充独立真机反馈 |
+| Nokia N8 / E7 / X7 / C7 等初代 Symbian³ | 因播放黑屏 bug 暂不支持；请保留 1.1.0 并等待后续修复 |
+| Symbian Anna / 原版 Symbian³ | 仍以统一 SIS 为长期适配目标；当前先解决初代设备黑屏后再恢复公测 |
 
 Belle 设备通常已经具备所需运行环境。Anna / 原版 Symbian³ 若缺少运行库，需要先安装
 兼容的 **Qt 4.7.4** 与 **Qt Mobility 1.2.x**；项目不依赖已经停止服务的 Smart Installer。
@@ -122,7 +133,7 @@ Belle 设备通常已经具备所需运行环境。Anna / 原版 Symbian³ 若�
 - Nokia 603 上，能够进入系统硬件解码路径的视频目前基本可以稳定达到 **30fps**。N8 一代的
   硬件解码能力低于 603，但对于其硬解兼容范围内的视频，仍预计能够保持流畅播放；
 - 直播链路仍属实验性功能，不作为当前正式版的稳定性承诺；
-- 原版 Symbian³ / Anna 的离线 Qt/Mobility 运行库仍需要更多真机验证；
+- 初代 Symbian³ 设备目前存在播放黑屏 bug，1.2 暂不支持；
 - B 站接口、登录流程和媒体 URL 都可能随服务端变化。
 
 ## 后续计划
@@ -167,6 +178,7 @@ symbian\third_party\ppsspp_ffmpeg\Build-Gcce-H264.ps1 -EnableArmAssembly -Reconf
 |---|---|
 | `symbian/app/` | Qt/qmake 应用入口、NIKINIKI 图标和资源声明 |
 | `symbian/source/`、`symbian/include/` | Symbian C++03 应用、网络、UI 与播放器代码 |
+| `symbian/patches/` | 不随 SIS 安装的可选纯文本系统补丁及适用边界 |
 | `symbian/resources/` | 应用字体、卡片背景及对应许可证 |
 | `symbian/third_party/` | 固定版本的 NanoVG、QR、FFmpeg 与兼容层 |
 | `docs/` | 架构决策、真机证据、实验记录与历史发行文档 |

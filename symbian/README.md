@@ -6,7 +6,8 @@ historical names remain unchanged for compatibility and traceability.
 
 ## Current status
 
-- Version 1.1.0 is the current formally signed and published release. It fixes
+- Version 1.2.0 is the current development mainline; 1.1.0 remains the formally
+  signed and published release. Version 1.1.0 fixes
   the first-install font-loading stall and adds explicit transport and decoder
   policy selectors, including shared-file progressive `OpenFileL` playback.
 - Compatible AVC
@@ -36,6 +37,13 @@ historical names remain unchanged for compatibility and traceability.
 See [`../docs/reference/TOOLCHAIN_REPORT.md`](../docs/reference/TOOLCHAIN_REPORT.md) for exact versions and missing components.
 See [`../docs/ROADMAP_ZH.md`](../docs/ROADMAP_ZH.md) for the current implementation plan and scope.
 See [`../docs/research/future/LIVE_PLAYBACK_ARCHITECTURE_ZH.md`](../docs/research/future/LIVE_PLAYBACK_ARCHITECTURE_ZH.md) for the historical upstream live-player analysis.
+
+## Optional H.264 ref7 patch
+
+[`patches/h264-ref7/`](patches/h264-ref7/README_ZH.md) contains the experimental, manual-only
+RomPatcher+ admission patch proven on Nokia 603 SW113. It is not packaged in the application SIS,
+is never enabled by NIKINIKI, and does not replace the normal MMF/FFmpeg fallback. Other firmware
+images with the same static gate still require independent device validation.
 
 ## 1. Bootstrap host tools
 
@@ -130,7 +138,7 @@ Qt 4.7's Symbian qmake generator does not resolve this multi-directory project
 correctly as a shadow build. `Build-App.ps1` therefore builds in
 `symbian/app` and copies the SDK-signed SIS to the ignored configuration
 directory with a public-facing name such as
-`symbian/out/wiliwili-symbian-release/NIKINIKI_1.1.0_release.sis`. The internal
+`symbian/out/wiliwili-symbian-release/NIKINIKI_1.2.0_release.sis`. The internal
 target remains `wiliwili_symbian` only for upgrade compatibility and source
 traceability; it is not a public installation asset name.
 

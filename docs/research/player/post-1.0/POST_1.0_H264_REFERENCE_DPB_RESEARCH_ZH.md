@@ -2,7 +2,9 @@
 
 > 建档日期：2026-08-29  
 > 来源：用户 2026-08-28 的 Nokia 603 文件级 SPS 伪装真机实验；本项目未在本轮审计其脚本或二进制。  
-> 状态：1.0 前封存。不得把 SPS 伪装、码流修改、插件替换或 capability 绕过加入正式播放器。
+> 状态：Archived historical evidence。full-SPS fake 的负控制结论继续有效；最终结果见
+> [H.264 ref7 硬件解码结题报告](../H264_REF7_HARDWARE_DECODE_FINAL_REPORT_ZH.md)。不得把持续 SPS
+> 伪装作为播放方案；成功的 Header/Submit split 与 full-SPS fake 必须严格区分。
 
 ## 1. 用户实验的可用证据
 

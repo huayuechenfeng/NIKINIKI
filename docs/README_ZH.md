@@ -45,6 +45,8 @@ NIKINIKI 的文档分为活文档、决策、参考、研究、发布和历史�
 - [工具链报告](reference/TOOLCHAIN_REPORT.md)：Qt、GCCE、SDK、签名和部署基线；
 - [上游固定点](reference/UPSTREAM_BASELINE.md)与[代码边界](reference/CODE_BOUNDARY_ANALYSIS_ZH.md)：来源、复用范围和许可证边界；
 - [播放器研究](research/README_ZH.md)：0.x 实验、性能测量和发布后底层研究；
+- [H.264 ref7 结题报告](research/player/H264_REF7_HARDWARE_DECODE_FINAL_REPORT_ZH.md)与
+  [可选补丁](../symbian/patches/h264-ref7/README_ZH.md)：已完成的硬解扩展成果和使用边界；
 - [版本发布记录](releases/README_ZH.md)：正式包、校验值、签名和重链接材料；
 - [历史归档](archive/README_ZH.md)：旧阶段报告、早期设计、会话记录和已被替代的计划。
 

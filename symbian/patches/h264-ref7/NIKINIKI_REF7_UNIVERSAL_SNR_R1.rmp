@@ -1,0 +1,6 @@
+; NIKINIKI H.264 ref=7 admission universal-signature patch R1
+; Target: sys\bin\ivevideodecodehwdevice.dll
+; Changes only the first Thumb cmp r0,#6 to cmp r0,#7 in the audited gate.
+; Signature is unique in 9 audited DLL images. Device-verified on Nokia 603
+; RM-779 SW113.010.1506 only. Manual use only. NEVER auto-apply.
+SnR:sys\bin\ivevideodecodehwdevice.dll:0628??D84B210903??42????0628:0728??D84B210903??42????0628

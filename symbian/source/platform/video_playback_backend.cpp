@@ -20,6 +20,13 @@
 #include <mmf/common/mmfbase.h>
 #include <mmf/common/mmferrors.h>
 #include <mmf/common/mmfvideo.h>
+#ifdef WILIWILI_ENABLE_E7_MMF_HELIX_DIAGNOSTIC
+#include <mmf/common/mmfcontrollerpluginresolver.h>
+#endif
+#ifdef WILIWILI_ENABLE_E7_MMF_GRAPHICS_SURFACE_DIAGNOSTIC
+#include <platform/graphics/surface.h>
+#include <surfaceeventhandler.h>
+#endif
 #include <mmf/devvideo/devvideoplay.h>
 #include <videoplayer2.h>
 #endif
@@ -590,15 +597,18 @@ class VideoPlaybackBackend::Impl
 #ifdef Q_OS_SYMBIAN
     : public MVideoPlayerUtilityObserver,
       public MMMFDevVideoPlayObserver
+#ifdef WILIWILI_ENABLE_E7_MMF_GRAPHICS_SURFACE_DIAGNOSTIC
+      , public MMMFSurfaceEventHandler
+#endif
 #endif
 {
 public:
     explicit Impl(QWidget *videoHost)
         : host(videoHost), currentState(StoppedState),
-          currentStatus(NoMedia), currentError(NoError), currentDuration(0),
-          currentVolume(80), mediaSessionSerial(0),
-          requestedRate(1.0), playWhenReady(false),
-          videoAvailable(false), nativeVideoEnabledRequested(true),
+           currentStatus(NoMedia), currentError(NoError), currentDuration(0),
+           currentVolume(80), mediaSessionSerial(0),
+           requestedRate(1.0), playWhenReady(false),
+           videoAvailable(false), nativeVideoEnabledRequested(true),
           nativeVideoPolicyApplied(true), nativeVideoPolicyError(0),
           devVideoProbeState(0),
           devVideoProbeError(0), devVideoProbePictures(0),
@@ -610,6 +620,10 @@ public:
           player(0), displayWindow(0), displayAdded(false),
           geometryApplied(false), rotationApplied(false),
           scaleApplied(false),
+#ifdef WILIWILI_ENABLE_E7_MMF_GRAPHICS_SURFACE_DIAGNOSTIC
+          surfaceDisplayAdded(false), surfaceBackgroundAttached(false),
+          surfaceDisplayId(0), surfaceId(TSurfaceId::CreateNullId()),
+#endif
 #ifdef WILIWILI_ENABLE_FFMPEG_SOFT_DECODER
           ffmpegDecoder(0),
 #endif
@@ -706,26 +720,94 @@ public:
         environment->WsSession().Flush();
         qDebug() << "WW:NATIVE_MMF_STAGE" << 13 << "qt-window-ready";
 
-        // Query the local AVC decoder registry before MMF opens a controller.
-        // This is the decision gate for a device-only fallback: if Belle
-        // exposes an accelerated DevVideo decoder, a future path can feed it
-        // MP4 AVC samples directly while the current MMF session owns audio.
-        probeLocalAvcDecoders();
+#ifdef WILIWILI_ENABLE_E7_MMF_USERENVIRONMENT_DIAGNOSTIC
+        // Log the capability held by the installed EXE, rather than relying
+        // solely on the generated MMP/SIS metadata. This is the published
+        // baseline requirement for CVideoPlayerUtility video playback.
+        const TBool hasUserEnvironment =
+            RProcess().HasCapability(ECapabilityUserEnvironment);
+        qDebug() << "WW:E7_MMF_USERENVIRONMENT_CAPABILITY"
+                 << static_cast<bool>(hasUserEnvironment);
+#endif
 
-        qDebug() << "WW:NATIVE_MMF_STAGE" << 20 << "new-player-before";
+        // This is diagnostic-only.  CVideoPlayerUtility does not need a
+        // DevVideo object to select its controller, so E7 tests can compile
+        // it out to isolate MMF from any earlier decoder-plugin activity.
+#ifndef WILIWILI_DISABLE_NATIVE_DEVVIDEO_PROBE
+        probeLocalAvcDecoders();
+#else
+        qDebug() << "WW:NATIVE_MMF_DEVVIDEO_PROBE_SKIPPED";
+#endif
+
+        // Qt Mobility's S60 MMF implementation creates its video utility with
+        // priority 0 / PreferenceNone.  EMdaPriorityNormal is also 0, but the
+        // normal NIKINIKI route requests TimeAndQuality; preserve that normal
+        // request while making the Qt-Mobility comparison exact in the opt-in
+        // controller diagnostic.
+#ifdef WILIWILI_ENABLE_E7_MMF_HELIX_DIAGNOSTIC
+        const TInt playerPriority = 0;
+        const TInt playerPreference = EMdaPriorityPreferenceNone;
+#else
+        const TInt playerPriority = EMdaPriorityNormal;
+        const TInt playerPreference = EMdaPriorityPreferenceTimeAndQuality;
+#endif
+        qDebug() << "WW:NATIVE_MMF_STAGE" << 20 << "new-player-before"
+                 << "priority" << playerPriority
+                 << "preference" << playerPreference;
+#ifdef WILIWILI_ENABLE_E7_MMF_LEGACY_UTILITY_DIAGNOSTIC
+        const TRect initialRect = displayRect();
+        TRAPD(createError,
+            player = CVideoPlayerUtility::NewL(
+                *this,
+                playerPriority,
+                playerPreference,
+                environment->WsSession(),
+                *environment->ScreenDevice(),
+                *displayWindow,
+                initialRect,
+                initialRect);
+        );
+#else
         TRAPD(createError,
             player = CVideoPlayerUtility2::NewL(
                 *this,
-                EMdaPriorityNormal,
-                EMdaPriorityPreferenceTimeAndQuality));
+                playerPriority,
+                playerPreference);
+        );
+#endif
         qDebug() << "WW:NATIVE_MMF_STAGE" << 21 << "new-player-after"
-                 << createError << static_cast<void *>(player);
+                  << createError << static_cast<void *>(player);
         if (createError != KErrNone || !player) {
             fail(createError, "create");
             return false;
         }
+#ifdef WILIWILI_ENABLE_E7_MMF_LEGACY_UTILITY_DIAGNOSTIC
+        displayAdded = true;
+        qDebug() << "WW:E7_MMF_LEGACY_UTILITY_WINDOW"
+                 << host->size() << host->winId()
+                 << "bound-at-new";
+#endif
 
         return true;
+    }
+
+    void logOpenedController()
+    {
+#ifdef WILIWILI_ENABLE_E7_MMF_HELIX_DIAGNOSTIC
+        if (!player)
+            return;
+        TRAPD(controllerInfoError,
+            const CMMFControllerImplementationInformation &info =
+                player->ControllerImplementationInformationL();
+            qDebug() << "WW:E7_MMF_HELIX_CONTROLLER_OPENED"
+                     << info.Uid().iUid
+                     << symbianText(info.DisplayName())
+                     << symbianText(info.Supplier())
+                     << info.Version();
+        );
+        qDebug() << "WW:E7_MMF_HELIX_CONTROLLER_QUERY"
+                 << controllerInfoError;
+#endif
     }
 
     void closeSharedMediaFile()
@@ -772,6 +854,14 @@ public:
             return false;
         }
 
+#ifdef WILIWILI_ENABLE_E7_MMF_LEGACY_UTILITY_DIAGNOSTIC
+        Q_UNUSED(environment);
+        displayAdded = true;
+        qDebug() << "WW:E7_MMF_LEGACY_UTILITY_DISPLAY_READY"
+                 << host->size() << host->winId();
+        return true;
+#else
+
         // CVideoPlayerUtility2 does not own a selected controller until
         // MvpuoOpenComplete(KErrNone). Nokia 603 returns KErrNotReady when a
         // display is added immediately after NewL, before OpenUrl/OpenFile has
@@ -796,14 +886,68 @@ public:
         qDebug() << "WW:NATIVE_MMF_WINDOW"
                  << host->size() << host->winId() << "native-no-rotation";
         return true;
+#endif
     }
+
+#ifdef WILIWILI_ENABLE_E7_MMF_GRAPHICS_SURFACE_DIAGNOSTIC
+    bool addGraphicsSurfaceDisplay()
+    {
+        if (surfaceDisplayAdded)
+            return true;
+        CEikonEnv *environment = CEikonEnv::Static();
+        if (!player || !environment || !environment->ScreenDevice() ||
+            !displayWindow) {
+            fail(KErrNotReady, "surface-display-prerequisite");
+            return false;
+        }
+
+        // CVideoPlayerUtility2 registers its surface with WSERV before this
+        // object's MmsehSurfaceCreated callback.  Unlike AddDisplayWindowL,
+        // this is the public window-less graphics-surface output API.
+        surfaceDisplayId = environment->ScreenDevice()->GetScreenNumber();
+        qDebug() << "WW:E7_MMF_SURFACE_ADD_BEFORE" << surfaceDisplayId;
+        TRAPD(surfaceDisplayError,
+            player->AddDisplayL(
+                environment->WsSession(), surfaceDisplayId, *this));
+        qDebug() << "WW:E7_MMF_SURFACE_ADD_AFTER" << surfaceDisplayError
+                 << surfaceDisplayId;
+        if (surfaceDisplayError != KErrNone) {
+            fail(surfaceDisplayError, "surface-display");
+            return false;
+        }
+        surfaceDisplayAdded = true;
+        return true;
+    }
+
+    void removeGraphicsSurfaceDisplay()
+    {
+        if (surfaceBackgroundAttached && displayWindow) {
+            displayWindow->RemoveBackgroundSurface(ETrue);
+            qDebug() << "WW:E7_MMF_SURFACE_BACKGROUND_REMOVED";
+        }
+        surfaceBackgroundAttached = false;
+        surfaceId = TSurfaceId::CreateNullId();
+        if (player && surfaceDisplayAdded) {
+            player->RemoveDisplay(surfaceDisplayId);
+            qDebug() << "WW:E7_MMF_SURFACE_DISPLAY_REMOVED"
+                     << surfaceDisplayId;
+        }
+        surfaceDisplayAdded = false;
+        surfaceDisplayId = 0;
+    }
+#endif
 
     void closeMedia()
     {
         if (player) {
             player->Stop();
+#ifdef WILIWILI_ENABLE_E7_MMF_GRAPHICS_SURFACE_DIAGNOSTIC
+            removeGraphicsSurfaceDisplay();
+#endif
+#ifndef WILIWILI_ENABLE_E7_MMF_LEGACY_UTILITY_DIAGNOSTIC
             if (displayAdded && displayWindow)
                 player->RemoveDisplayWindow(*displayWindow);
+#endif
             player->Close();
         }
         closeSharedMediaFile();
@@ -892,8 +1036,12 @@ public:
             qDebug() << "WW:NATIVE_MMF_STAGE" << 60 << "rotation-before"
                      << "native-none";
             TRAPD(rotationError,
+#ifdef WILIWILI_ENABLE_E7_MMF_LEGACY_UTILITY_DIAGNOSTIC
+                player->SetRotationL(EVideoRotationNone));
+#else
                 player->SetRotationL(
                     *displayWindow, EVideoRotationNone));
+#endif
             qDebug() << "WW:NATIVE_MMF_ROTATION"
                      << "native-none" << rotationError;
             rotationApplied = true;
@@ -901,8 +1049,12 @@ public:
         if (!scaleApplied) {
             qDebug() << "WW:NATIVE_MMF_STAGE" << 61 << "scale-before";
             TRAPD(scaleError,
+#ifdef WILIWILI_ENABLE_E7_MMF_LEGACY_UTILITY_DIAGNOSTIC
+                player->SetAutoScaleL(EAutoScaleBestFit));
+#else
                 player->SetAutoScaleL(
                     *displayWindow, EAutoScaleBestFit));
+#endif
             qDebug() << "WW:NATIVE_MMF_SCALE" << scaleError;
             scaleApplied = scaleError == KErrNone;
         }
@@ -913,6 +1065,12 @@ public:
     {
         if (!player || !displayWindow || !displayAdded)
             return;
+#ifdef WILIWILI_ENABLE_E7_MMF_LEGACY_UTILITY_DIAGNOSTIC
+        // The legacy utility received this stable 640x360 RWindow plus its
+        // extent and clip in NewL().  Do not rebind it after controller open.
+        geometryApplied = true;
+        return;
+#else
         const TRect rect = displayRect();
         if (geometryApplied &&
             lastGeometryRect.iTl.iX == rect.iTl.iX &&
@@ -947,6 +1105,7 @@ public:
         } else {
             geometryApplied = false;
         }
+#endif
     }
 
     virtual void MvpuoOpenComplete(TInt error)
@@ -956,15 +1115,71 @@ public:
             fail(error, "open");
             return;
         }
+        logOpenedController();
+#ifdef WILIWILI_ENABLE_E7_MMF_GRAPHICS_SURFACE_DIAGNOSTIC
+        // The surface route must not bind CVideoPlayerUtility2's ordinary
+        // display window before Prepare().  Qt Mobility registers AddDisplayL
+        // only after its prepare callback, then attaches the callback surface
+        // to a native window.  This keeps the final E7 test genuinely distinct
+        // from every preceding AddDisplayWindowL experiment.
+        currentStatus = LoadingMedia;
+        qDebug() << "WW:E7_MMF_SURFACE_PREPARE_WITHOUT_DISPLAY_WINDOW";
+        player->Prepare();
+        return;
+#endif
+#ifdef WILIWILI_ENABLE_E7_DEVVIDEO_MEMORY_DIAGNOSTIC
+        // This diagnostic keeps the MMF controller only for AAC and the
+        // playback clock.  Do not attach an MMF display renderer, which could
+        // reserve the BCM video path before the application-owned DevVideo
+        // memory-output decoder is configured below.
+        if (!nativeVideoEnabledRequested) {
+            qDebug() << "WW:E7_DEVVIDEO_MEMORY_MMF_DISPLAY_SKIPPED"
+                     << mediaSessionSerial;
+            TRAPD(disableBeforePrepareError,
+                player->SetVideoEnabledL(EFalse));
+            qDebug() << "WW:E7_DEVVIDEO_MEMORY_MMF_VIDEO_OFF_PREPARE"
+                     << disableBeforePrepareError;
+        } else {
+            if (!addDisplayWindow())
+                return;
+            qDebug() << "WW:NATIVE_MMF_STAGE" << 65 << "configure-before";
+            configureDisplay();
+            qDebug() << "WW:NATIVE_MMF_STAGE" << 66 << "configure-after";
+        }
+#else
         if (!addDisplayWindow())
             return;
         qDebug() << "WW:NATIVE_MMF_STAGE" << 65 << "configure-before";
         configureDisplay();
         qDebug() << "WW:NATIVE_MMF_STAGE" << 66 << "configure-after";
+#endif
         currentStatus = LoadingMedia;
         qDebug() << "WW:NATIVE_MMF_STAGE" << 67 << "prepare-before";
         player->Prepare();
         qDebug() << "WW:NATIVE_MMF_STAGE" << 68 << "prepare-after";
+    }
+
+    void logSelectedTracks()
+    {
+#ifdef WILIWILI_ENABLE_E7_MMF_CONTROLLER_TRACE
+        if (!player)
+            return;
+        TRAPD(trackInfoError,
+            TSize videoSize;
+            player->VideoFrameSizeL(videoSize);
+            const TReal32 videoFrameRate = player->VideoFrameRateL();
+            const TDesC8 &videoMime = player->VideoFormatMimeType();
+            const TInt videoBitRate = player->VideoBitRateL();
+            const TInt audioBitRate = player->AudioBitRateL();
+            TFourCC audioType = player->AudioTypeL();
+            qDebug() << "WW:NATIVE_MMF_TRACK_INFO"
+                     << symbianText8(videoMime)
+                     << videoSize.iWidth << videoSize.iHeight
+                     << videoFrameRate << videoBitRate
+                     << audioType.FourCC() << audioBitRate;
+        );
+        qDebug() << "WW:NATIVE_MMF_TRACK_INFO_QUERY" << trackInfoError;
+#endif
     }
 
     virtual void MvpuoPrepareComplete(TInt error)
@@ -991,6 +1206,19 @@ public:
                  << partialPlayback
                  << videoEnabledError << static_cast<bool>(nativeVideoEnabled)
                  << audioEnabledError << static_cast<bool>(nativeAudioEnabled);
+        logSelectedTracks();
+#ifdef WILIWILI_ENABLE_E7_MMF_GRAPHICS_SURFACE_DIAGNOSTIC
+        if (nativeVideoEnabledRequested &&
+            videoEnabledError == KErrNone && nativeVideoEnabled) {
+            if (!addGraphicsSurfaceDisplay())
+                return;
+        } else {
+            qDebug() << "WW:E7_MMF_SURFACE_SKIPPED"
+                     << "requested" << nativeVideoEnabledRequested
+                     << "video-query" << videoEnabledError
+                     << "video-enabled" << static_cast<bool>(nativeVideoEnabled);
+        }
+#endif
         applyNativeVideoPolicy(&nativeVideoEnabled);
         qDebug() << "WW:NATIVE_MMF_STAGE" << 70 << "duration-before";
         TTimeIntervalMicroSeconds nativeDuration;
@@ -1037,6 +1265,59 @@ public:
         if (event.iErrorCode != KErrNone)
             fail(event.iErrorCode, "event");
     }
+
+#ifdef WILIWILI_ENABLE_E7_MMF_GRAPHICS_SURFACE_DIAGNOSTIC
+    virtual void MmsehSurfaceCreated(
+        TInt aDisplayId,
+        const TSurfaceId &aId,
+        const TRect &aCropRect,
+        TVideoAspectRatio aAspectRatio)
+    {
+        Q_UNUSED(aAspectRatio);
+        surfaceId = aId;
+        const TInt attachError = displayWindow
+            ? displayWindow->SetBackgroundSurface(aId) : KErrNotReady;
+        surfaceBackgroundAttached = attachError == KErrNone;
+        CEikonEnv *environment = CEikonEnv::Static();
+        if (environment)
+            environment->WsSession().Flush();
+        qDebug() << "WW:E7_MMF_SURFACE_CREATED"
+                 << aDisplayId
+                 << static_cast<quint32>(aId.iInternal[0])
+                 << static_cast<quint32>(aId.iInternal[1])
+                 << static_cast<quint32>(aId.iInternal[2])
+                 << static_cast<quint32>(aId.iInternal[3])
+                 << aCropRect.iTl.iX << aCropRect.iTl.iY
+                 << aCropRect.iBr.iX << aCropRect.iBr.iY
+                 << "attach" << attachError;
+    }
+
+    virtual void MmsehSurfaceParametersChanged(
+        const TSurfaceId &aId,
+        const TRect &aCropRect,
+        TVideoAspectRatio aAspectRatio)
+    {
+        Q_UNUSED(aAspectRatio);
+        qDebug() << "WW:E7_MMF_SURFACE_PARAMETERS"
+                 << static_cast<quint32>(aId.iInternal[3])
+                 << aCropRect.iTl.iX << aCropRect.iTl.iY
+                 << aCropRect.iBr.iX << aCropRect.iBr.iY;
+    }
+
+    virtual void MmsehRemoveSurface(const TSurfaceId &aId)
+    {
+        const bool matchesCurrentSurface = aId == surfaceId;
+        if (matchesCurrentSurface && surfaceBackgroundAttached && displayWindow)
+            displayWindow->RemoveBackgroundSurface(ETrue);
+        if (matchesCurrentSurface) {
+            surfaceBackgroundAttached = false;
+            surfaceId = TSurfaceId::CreateNullId();
+        }
+        qDebug() << "WW:E7_MMF_SURFACE_REMOVED"
+                 << static_cast<quint32>(aId.iInternal[3])
+                 << "current" << matchesCurrentSurface;
+    }
+#endif
 
     void startPlayback()
     {
@@ -1361,9 +1642,21 @@ public:
         // controller result. Treat video as unavailable until DevVideo hands
         // us a real memory picture, so the 360p safety fallback remains live.
         videoAvailable = false;
-        // The retired BCM control path closes MMF to exclude ownership of the
-        // single hardware video instance. This method is never used by the
-        // FFmpeg fallback, which retains MMF as the AAC/audio clock owner.
+        // The historical DevVideo experiment closed MMF before starting its
+        // own decoder.  E7 memory-output diagnosis intentionally does the
+        // opposite: MMF stays alive as AAC and the common playback clock, but
+        // has had its video track disabled before Prepare().
+#if defined(WILIWILI_ENABLE_E7_DEVVIDEO_MEMORY_DIAGNOSTIC) && \
+    !defined(WILIWILI_ENABLE_E7_DEVVIDEO_MEMORY_SOLO_DIAGNOSTIC)
+        qDebug() << "WW:E7_DEVVIDEO_MEMORY_MMF_RETAINED"
+                 << static_cast<void *>(player)
+                 << currentState << currentStatus << displayAdded
+                 << audioPositionMilliseconds();
+        logNativeAudioState("e7-devvideo-before");
+#else
+        qDebug() << "WW:E7_DEVVIDEO_MEMORY_MMF_ABSENT"
+                 << static_cast<void *>(player)
+                 << currentState << currentStatus << displayAdded;
         if (player) {
             qDebug() << "WW:DEVVIDEO_DIAG_MMF_CLOSE_BEFORE"
                      << currentState << currentStatus << displayAdded;
@@ -1372,6 +1665,7 @@ public:
             qDebug() << "WW:DEVVIDEO_DIAG_MMF_CLOSE_AFTER"
                      << currentState << currentStatus << displayAdded;
         }
+#endif
         devVideoProbeState = 1;
         qDebug() << "WW:DEVVIDEO_PLAYER_BEGIN"
                  << devVideoUnits.size()
@@ -1704,13 +1998,23 @@ public:
     RFile sharedMediaFile;
     bool sharedFileSessionConnected;
     bool sharedMediaFileOpen;
+#ifdef WILIWILI_ENABLE_E7_MMF_LEGACY_UTILITY_DIAGNOSTIC
+    CVideoPlayerUtility *player;
+#else
     CVideoPlayerUtility2 *player;
+#endif
     RWindow *displayWindow;
     bool displayAdded;
     bool geometryApplied;
     TRect lastGeometryRect;
     bool rotationApplied;
     bool scaleApplied;
+#ifdef WILIWILI_ENABLE_E7_MMF_GRAPHICS_SURFACE_DIAGNOSTIC
+    bool surfaceDisplayAdded;
+    bool surfaceBackgroundAttached;
+    TInt surfaceDisplayId;
+    TSurfaceId surfaceId;
+#endif
 #ifdef WILIWILI_ENABLE_FFMPEG_SOFT_DECODER
     FfmpegH264Decoder *ffmpegDecoder;
 #endif
@@ -1742,7 +2046,9 @@ VideoPlaybackBackend::~VideoPlaybackBackend()
     delete m_impl;
 }
 
-void VideoPlaybackBackend::setMedia(const QMediaContent &media)
+void VideoPlaybackBackend::setMedia(
+    const QMediaContent &media,
+    const QByteArray &mimeType)
 {
     const QUrl url = media.canonicalUrl();
     qDebug() << "WW:NATIVE_MMF_STAGE" << 40 << "set-media-enter"
@@ -1776,30 +2082,55 @@ void VideoPlaybackBackend::setMedia(const QMediaContent &media)
         : url.toString();
     const TPtrC descriptor(
         reinterpret_cast<const TUint16 *>(value.utf16()), value.length());
+#ifdef WILIWILI_ENABLE_E7_MMF_HELIX_DIAGNOSTIC
+    // This is the UID hard-coded by Qt Mobility's public S60 MMF player
+    // backend.  CVideoPlayerUtility's optional controller parameter is the
+    // supported way to request it; KNullUid retains NIKINIKI's normal resolver
+    // behaviour in every other build.
+    const TUid controllerUid = TUid::Uid(0x101F8514);
+    qDebug() << "WW:E7_MMF_HELIX_CONTROLLER_REQUEST"
+             << controllerUid.iUid << "local" << localFile;
+#else
+    const TUid controllerUid = KNullUid;
+#endif
     TInt openError = KErrNone;
     if (localFile) {
         qDebug() << "WW:NATIVE_MMF_STAGE" << 50 << "open-file-before";
+#ifdef WILIWILI_ENABLE_E7_MMF_PATH_OPEN_DIAGNOSTIC
+        // A fully downloaded MP4 need not remain open for a writer.  Match
+        // the normal system-player input form and retain the filename for the
+        // controller resolver while diagnosing E7 partial playback.
+        qDebug() << "WW:NATIVE_MMF_FILE_PATH" << "complete-local";
+        TRAP(openError,
+             m_impl->player->OpenFileL(descriptor, controllerUid));
+#else
         openError = m_impl->openSharedMediaFile(descriptor);
         qDebug() << "WW:NATIVE_MMF_FILE_HANDLE"
                  << "share-read-write" << openError;
         if (openError == KErrNone) {
             TRAP(openError,
-                 m_impl->player->OpenFileL(m_impl->sharedMediaFile));
+                 m_impl->player->OpenFileL(
+                     m_impl->sharedMediaFile, controllerUid));
         }
+#endif
     } else {
         qDebug() << "WW:NATIVE_MMF_STAGE" << 50 << "open-url-before";
+        const TPtrC8 mimeDescriptor(
+            reinterpret_cast<const TUint8 *>(mimeType.constData()),
+            mimeType.size());
         TRAP(openError,
             m_impl->player->OpenUrlL(
-                descriptor, KUseDefaultIap, KNullDesC8));
+                descriptor, KUseDefaultIap, mimeDescriptor, controllerUid));
     }
     qDebug() << "WW:NATIVE_MMF_STAGE" << 51 << "open-call-after"
              << openError;
     qDebug() << "WW:NATIVE_MMF_OPEN"
-             << localFile << url.scheme() << openError;
+             << localFile << url.scheme() << mimeType << openError;
     if (openError != KErrNone)
         m_impl->fail(openError, "open-call");
 #else
     Q_UNUSED(url);
+    Q_UNUSED(mimeType);
     m_impl->fail(-5, "unsupported-platform");
 #endif
 }

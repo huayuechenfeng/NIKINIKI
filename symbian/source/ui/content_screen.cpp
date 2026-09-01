@@ -34,7 +34,8 @@ static NVGcolor commentAvatarColor(const QString &name)
 }
 
 ContentScreen::ContentScreen()
-    : m_fontId(-1), m_width(360.0f), m_height(640.0f),
+    : m_fontId(-1), m_itemHeightWidth(0.0f),
+       m_width(360.0f), m_height(640.0f),
        m_scroll(0.0f), m_minScroll(0.0f), m_pullDistance(0.0f),
        m_dragging(false), m_canLoadMore(false), m_loadMoreArmed(false)
 {
@@ -75,9 +76,14 @@ void ContentScreen::setItems(const QVector<ContentItemCompat> &items)
 {
     m_items = items;
     m_itemImages.clear();
+    m_itemHeights.clear();
+    int index;
+    for (index = 0; index < m_items.size(); ++index)
+        m_itemHeights.append(kContentItemHeight);
     m_scroll = 0.0f;
     m_pullDistance = 0.0f;
     m_loadMoreArmed = false;
+    m_itemHeightWidth = 0.0f;
 }
 
 void ContentScreen::appendItems(const QVector<ContentItemCompat> &items)
@@ -99,9 +105,11 @@ void ContentScreen::appendItems(const QVector<ContentItemCompat> &items)
         if (!duplicate) {
             m_items.append(candidate);
             m_itemImages.append(-1);
+            m_itemHeights.append(kContentItemHeight);
         }
     }
     m_loadMoreArmed = false;
+    m_itemHeightWidth = 0.0f;
 }
 
 void ContentScreen::setItemImages(const QVector<int> &images)
@@ -150,6 +158,10 @@ void ContentScreen::restoreState(const State &state, bool restoreImages)
     m_headerAction = state.headerAction;
     m_secondaryHeaderAction = state.secondaryHeaderAction;
     m_items = state.items;
+    m_itemHeights.clear();
+    int heightIndex;
+    for (heightIndex = 0; heightIndex < m_items.size(); ++heightIndex)
+        m_itemHeights.append(kContentItemHeight);
     if (restoreImages && state.itemImages.size() == m_items.size()) {
         m_itemImages = state.itemImages;
     } else {
@@ -163,6 +175,7 @@ void ContentScreen::restoreState(const State &state, bool restoreImages)
     m_dragging = false;
     m_canLoadMore = state.canLoadMore;
     m_loadMoreArmed = false;
+    m_itemHeightWidth = 0.0f;
 }
 
 void ContentScreen::drawText(
@@ -196,7 +209,7 @@ void ContentScreen::drawWrappedText(
     nvgTextLineHeight(context, 1.12f);
     nvgFillColor(context, color);
     int line = 0;
-    while (start < end && line < maxLines) {
+    while (start < end && (maxLines <= 0 || line < maxLines)) {
         NVGtextRow row;
         if (nvgTextBreakLines(context, start, end, width, &row, 1) < 1)
             break;
@@ -204,6 +217,79 @@ void ContentScreen::drawWrappedText(
         start = row.next;
         ++line;
     }
+}
+
+int ContentScreen::wrappedLineCount(
+    NVGcontext *context, const QString &text,
+    float width, float size) const
+{
+    if (!context || m_fontId < 0 || text.isEmpty() || width <= 1.0f)
+        return 0;
+    const QByteArray utf8 = text.toUtf8();
+    const char *start = utf8.constData();
+    const char *end = start + utf8.size();
+    nvgFontFaceId(context, m_fontId);
+    nvgFontSize(context, size);
+    nvgTextAlign(context, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
+    nvgTextLineHeight(context, 1.12f);
+    int lines = 0;
+    while (start < end) {
+        NVGtextRow row;
+        if (nvgTextBreakLines(context, start, end, width, &row, 1) < 1)
+            break;
+        start = row.next;
+        ++lines;
+    }
+    return lines;
+}
+
+void ContentScreen::updateItemHeights(
+    NVGcontext *context, float width)
+{
+    if (qAbs(m_itemHeightWidth - width) < 0.5f &&
+        m_itemHeights.size() == m_items.size()) {
+        return;
+    }
+    while (m_itemHeights.size() < m_items.size())
+        m_itemHeights.append(kContentItemHeight);
+    int index;
+    for (index = 0; index < m_items.size(); ++index) {
+        const ContentItemCompat &item = m_items.at(index);
+        if (item.id != QString::fromLatin1("dynamic-detail")) {
+            m_itemHeights[index] = item.id ==
+                    QString::fromLatin1("comment-reply")
+                ? kCommentReplyItemHeight
+                : item.id.startsWith(QString::fromLatin1("comment-"))
+                ? kCommentItemHeight +
+                    (item.previewText.trimmed().isEmpty()
+                        ? 0.0f : kCommentPreviewExtra)
+                : kContentItemHeight;
+            continue;
+        }
+        QString body = item.description;
+        if (body.isEmpty())
+            body = item.mediaTitle;
+        const float cardWidth = qMax(1.0f, width - 20.0f);
+        const int bodyLines = qMax(
+            1, wrappedLineCount(
+                context, body, cardWidth - 24.0f, 10.8f));
+        const float bodyHeight = bodyLines * 12.1f;
+        const bool separateTitle = !item.mediaTitle.trimmed().isEmpty() &&
+            item.mediaTitle.trimmed() != body.trimmed();
+        float detailHeight = 55.0f + bodyHeight +
+            (separateTitle ? 36.0f : 0.0f) + 31.0f;
+        if (!item.mediaPicture.trimmed().isEmpty()) {
+            const float imageWidth = qMax(1.0f, cardWidth - 22.0f);
+            float imageHeight = imageWidth * 9.0f / 16.0f;
+            if (item.mediaWidth > 0 && item.mediaHeight > 0) {
+                imageHeight = imageWidth * item.mediaHeight /
+                    static_cast<float>(item.mediaWidth);
+            }
+            detailHeight += imageHeight + 9.0f;
+        }
+        m_itemHeights[index] = qMax(126.0f, detailHeight);
+    }
+    m_itemHeightWidth = width;
 }
 
 void ContentScreen::updateLayout(float width, float height)
@@ -238,6 +324,9 @@ float ContentScreen::itemHeight(int index) const
     if (index < 0 || index >= m_items.size())
         return kContentItemHeight;
     const QString id = m_items.at(index).id;
+    if (id == QString::fromLatin1("dynamic-detail"))
+        return index < m_itemHeights.size()
+            ? m_itemHeights.at(index) : 190.0f;
     if (id == QString::fromLatin1("comment-reply"))
         return kCommentReplyItemHeight;
     if (id.startsWith(QString::fromLatin1("comment-"))) {
@@ -264,6 +353,7 @@ QRectF ContentScreen::itemFrame(int index) const
 
 void ContentScreen::draw(NVGcontext *context, float width, float height)
 {
+    updateItemHeights(context, width);
     updateLayout(width, height);
     NVGpaint background = nvgLinearGradient(
         context, 0.0f, 0.0f, width, height,
@@ -354,6 +444,83 @@ void ContentScreen::draw(NVGcontext *context, float width, float height)
         const bool isComment =
             item.id.startsWith(QString::fromLatin1("comment-"));
 
+        if (item.id == QString::fromLatin1("dynamic-detail")) {
+            nvgBeginPath(context);
+            nvgRoundedRect(context, x, y, w, h, 11.0f);
+            nvgFillColor(context, nvgRGBA(43, 43, 53, 246));
+            nvgFill(context);
+            nvgBeginPath(context);
+            nvgCircle(context, x + 25.0f, y + 25.0f, 16.0f);
+            nvgFillColor(context, commentAvatarColor(item.subtitle));
+            nvgFill(context);
+            drawText(context, item.subtitle.trimmed().left(1).toUpper(),
+                     x + 25.0f, y + 25.0f, 10.0f,
+                     nvgRGB(250, 250, 253),
+                     NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+            drawText(context, item.subtitle, x + 49.0f, y + 19.0f,
+                     11.2f, nvgRGB(248, 206, 219),
+                     NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
+            drawText(context, item.badge, x + 49.0f, y + 35.0f,
+                     8.6f, nvgRGB(156, 156, 171),
+                     NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
+            QString body = item.description;
+            if (body.trimmed().isEmpty())
+                body = item.mediaTitle;
+            const int bodyLines = qMax(
+                1, wrappedLineCount(
+                    context, body, w - 24.0f, 10.8f));
+            const float bodyHeight = bodyLines * 12.1f;
+            drawWrappedText(context, body,
+                            x + 12.0f, y + 55.0f, w - 24.0f,
+                            10.8f, 0, nvgRGB(244, 244, 248));
+            float attachmentY = y + 55.0f + bodyHeight;
+            const bool separateTitle =
+                !item.mediaTitle.trimmed().isEmpty() &&
+                item.mediaTitle.trimmed() != body.trimmed();
+            if (separateTitle) {
+                nvgBeginPath(context);
+                nvgRoundedRect(context, x + 11.0f, attachmentY + 8.0f,
+                               w - 22.0f, 28.0f, 7.0f);
+                nvgFillColor(context, nvgRGBA(61, 60, 72, 230));
+                nvgFill(context);
+                drawWrappedText(context, item.mediaTitle,
+                                x + 19.0f, attachmentY + 14.0f,
+                                w - 38.0f, 9.4f, 1,
+                                nvgRGB(246, 246, 250));
+                attachmentY += 36.0f;
+            }
+            if (!item.mediaPicture.trimmed().isEmpty()) {
+                const float imageX = x + 11.0f;
+                const float imageY = attachmentY + 8.0f;
+                const float imageWidth = w - 22.0f;
+                float imageHeight = imageWidth * 9.0f / 16.0f;
+                if (item.mediaWidth > 0 && item.mediaHeight > 0) {
+                    imageHeight = imageWidth * item.mediaHeight /
+                        static_cast<float>(item.mediaWidth);
+                }
+                const int imageHandle = index < m_itemImages.size()
+                    ? m_itemImages.at(index) : -1;
+                nvgBeginPath(context);
+                nvgRoundedRect(context, imageX, imageY,
+                               imageWidth, imageHeight, 8.0f);
+                if (imageHandle > 0) {
+                    nvgFillPaint(context, nvgImagePattern(
+                        context, imageX, imageY, imageWidth, imageHeight,
+                        0.0f, imageHandle, 1.0f));
+                } else {
+                    nvgFillColor(context, nvgRGB(70, 67, 82));
+                }
+                nvgFill(context);
+            }
+            drawText(context,
+                     QString::fromUtf8("评论 %1  ·  赞 %2")
+                         .arg(item.replyCount).arg(item.count),
+                     x + 12.0f, y + h - 17.0f, 9.0f,
+                     nvgRGB(166, 166, 180),
+                     NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
+            continue;
+        }
+
         if (isComment) {
             const bool nested =
                 item.id == QString::fromLatin1("comment-reply");
@@ -402,14 +569,33 @@ void ContentScreen::draw(NVGcontext *context, float width, float height)
                          NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
                 authorX += 32.0f;
             }
+            const float authorSize = nested ? 10.0f : 10.8f;
+            nvgFontFaceId(context, m_fontId);
+            nvgFontSize(context, authorSize);
+            nvgTextAlign(context, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
+            float authorBounds[4] = { 0, 0, 0, 0 };
+            QByteArray authorUtf8 = author.toUtf8();
+            nvgTextBounds(context, authorX, y + 16.0f,
+                          authorUtf8.constData(), 0, authorBounds);
+            const float maximumAuthorWidth = qMax(
+                24.0f, x + w - authorX -
+                (item.level > 0 ? 43.0f : 12.0f));
+            while (author.size() > 2 &&
+                   authorBounds[2] - authorBounds[0] >
+                       maximumAuthorWidth) {
+                author = author.left(author.size() - 2) +
+                    QString::fromUtf8("…");
+                authorUtf8 = author.toUtf8();
+                nvgTextBounds(context, authorX, y + 16.0f,
+                              authorUtf8.constData(), 0, authorBounds);
+            }
             drawText(context, author, authorX, y + 16.0f,
-                     nested ? 10.0f : 10.8f,
+                     authorSize,
                      nvgRGB(244, 190, 208),
                      NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
             if (item.level > 0) {
-                const float levelX = authorX +
-                    qMin(100.0f, author.size() * (nested ? 6.0f : 6.5f)) +
-                    6.0f;
+                const float levelX = qMin(
+                    x + w - 35.0f, authorBounds[2] + 6.0f);
                 nvgBeginPath(context);
                 nvgRoundedRect(context, levelX, y + 9.0f,
                                25.0f, 14.0f, 3.0f);

@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "name": "NIKINIKI_REF7_UNIVERSAL_SNR_R1",
+  "status": "EXPERIMENTAL_MANUAL_PATCH",
+  "created": "2026-09-01",
+  "target": "sys/bin/ivevideodecodehwdevice.dll",
+  "change": {
+    "method": "RomPatcherPlus_SnR_masked_signature",
+    "find": "0628??D84B210903??42????0628",
+    "replace": "0728??D84B210903??42????0628",
+    "before_instruction": "cmp r0, #6",
+    "after_instruction": "cmp r0, #7",
+    "changed_byte_count": 1
+  },
+  "validation": {
+    "audited_dll_images": 9,
+    "unique_signature_matches_in_each_image": 1,
+    "device_verified_images": 1,
+    "device_verified_target": "Nokia 603 RM-779 SW113.010.1506",
+    "other_images_are_static_only": true
+  },
+  "safety": {
+    "included_in_sis": false,
+    "auto_apply_allowed": false,
+    "domain_srv_allowed": false,
+    "contains_vendor_binary": false
+  },
+  "files": {
+    "patch": {
+      "path": "NIKINIKI_REF7_UNIVERSAL_SNR_R1.rmp",
+      "sha256": "61C7C3D4081788E9B6EB20F50D1AB633FA8C33A51C51B3AEE2B658C43F23F187"
+    },
+    "known_images": {
+      "path": "KNOWN_IMAGES.tsv",
+      "sha256": "91D33D0761998819A5B19DA5867A200412E87D5807BF90D0EFA823FEC23E811A"
+    },
+    "readme": {
+      "path": "README_ZH.md",
+      "sha256": "1FC7F5C230D87EB0AAFCD164C1C56666AFFD609B2763EDEF8B57BECBEEF5905E"
+    }
+  }
+}

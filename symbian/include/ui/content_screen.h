@@ -65,6 +65,10 @@ private:
         NVGcontext *context, const QString &text,
         float x, float y, float width, float size,
         int maxLines, const NVGcolor &color) const;
+    int wrappedLineCount(
+        NVGcontext *context, const QString &text,
+        float width, float size) const;
+    void updateItemHeights(NVGcontext *context, float width);
     void updateLayout(float width, float height);
     QRectF itemFrame(int index) const;
     float itemHeight(int index) const;
@@ -77,6 +81,8 @@ private:
     QString m_secondaryHeaderAction;
     QVector<ContentItemCompat> m_items;
     QVector<int> m_itemImages;
+    QVector<float> m_itemHeights;
+    float m_itemHeightWidth;
     float m_width;
     float m_height;
     float m_scroll;

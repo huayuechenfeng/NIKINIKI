@@ -1,7 +1,7 @@
 # NIKINIKI 总体架构
 
 > 状态：Active
-> 适用版本：1.0.0 与当前主线
+> 适用版本：1.0.0 至 1.2.0 当前主线
 > 本页职责：描述现有模块和依赖方向，不记录移植设想或实验历史
 
 ## 系统边界
@@ -66,6 +66,17 @@ Qt 4.7.4 + Symbian native APIs + pinned third-party code
 主页是持续映射的 `QGLWidget`，用 NanoVG/GLES2 绘制。播放器是独立、持久的顶层窗口，
 由 AVKON 方向状态机在物理 640×360 工作区稳定后显示。视频表面和 ARGB UI overlay 与主页
 不组成普通 QWidget 父子嵌套，避免 Qt/WSERV/QGL 生命周期冲突。
+
+首页搜索的浏览态由 NanoVG 绘制输入区和右侧低对比描边“搜索”按钮；编辑态仍只使用一个原生
+`QLineEdit` 顶层，其内部嵌入真实 `QPushButton` 提交搜索，从而保留 Belle 输入法焦点链且不增加
+第二个原生顶层窗口。
+
+首页拖动事件使用合并刷新，推荐网格只提交当前裁剪区相交的卡片。视频详情使用同一
+`view/detail` 响应解析正文与 `Related`，相关推荐在正文下方纵向排列。动态列表按需顺序加载首张
+图片或视频封面，CDN 只限定宽度而不裁剪；解码后尺寸写回条目，列表和详情按正文行数与图片
+纵横比计算完整卡片高度，滑动期间复用高度缓存。非视频动态进入独立详情后请求
+`/x/polymer/web-dynamic/desktop/v1/detail` 补齐图文、文字或专栏正文，再用详情返回或列表保留的
+comment id/type 请求评论。列表只显示真实首图或加载占位，不在真实图片上叠加伪造的多图色块。
 
 播放器的详细对象图、选路和状态机见
 [PLAYBACK_ARCHITECTURE_ZH.md](PLAYBACK_ARCHITECTURE_ZH.md)。
