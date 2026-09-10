@@ -26,11 +26,18 @@ $git = Get-Command git -ErrorAction SilentlyContinue | Select-Object -First 1
 if (-not $git) {
     throw 'Git is required to validate the public repository boundary.'
 }
-$trackedRelativePaths = @(& $git.Source -C $root ls-files)
+$trackedRelativePaths = @(
+    & $git.Source -c core.quotepath=false -C $root `
+        ls-files --cached --others --exclude-standard
+)
 if ($LASTEXITCODE -ne 0) {
-    throw 'Unable to enumerate tracked repository files.'
+    throw 'Unable to enumerate public and proposed repository files.'
 }
-$trackedRelativePaths = @($trackedRelativePaths | ForEach-Object { Normalize-RelativePath $_ })
+$trackedRelativePaths = @(
+    $trackedRelativePaths |
+        ForEach-Object { Normalize-RelativePath $_ } |
+        Sort-Object -Unique
+)
 $trackedPathSet = [Collections.Generic.HashSet[string]]::new(
     [StringComparer]::OrdinalIgnoreCase)
 foreach ($relative in $trackedRelativePaths) {
@@ -95,7 +102,7 @@ foreach ($relative in $forbiddenPaths) {
 
 $forbiddenExtensions = @(
     '.sis', '.sisx', '.exe', '.dll', '.lib', '.a', '.o', '.obj',
-    '.pfx', '.p12', '.key', '.cer', '.csr', '.dmp'
+    '.pfx', '.p12', '.key', '.cer', '.csr', '.pem', '.dmp'
 )
 $allowedBinaryPaths = @(
     'prerequisites/Qt-4.7.403-for-Anna.sis',
@@ -109,6 +116,37 @@ Assert-Condition `
     (-not $forbiddenFiles) `
     ("Forbidden generated/signing files found:" + [Environment]::NewLine +
         (($forbiddenFiles | ForEach-Object RelativePath) -join [Environment]::NewLine))
+
+function Test-NulByte([string]$Path) {
+    $stream = [IO.File]::OpenRead($Path)
+    try {
+        $buffer = New-Object byte[] 8192
+        $read = $stream.Read($buffer, 0, $buffer.Length)
+        for ($index = 0; $index -lt $read; ++$index) {
+            if ($buffer[$index] -eq 0) {
+                return $true
+            }
+        }
+    } finally {
+        $stream.Dispose()
+    }
+    return $false
+}
+
+# Extensionless SIS payloads such as dumpsis `file0` must not evade the
+# repository boundary. Known distributable resource formats are the only
+# binary-content exceptions; the two runtime SIS files remain path-gated above.
+$allowedBinaryExtensions = @('.png', '.jpg', '.jpeg', '.ttf', '.otf')
+$unexpectedBinaryFiles = $trackedFiles | Where-Object {
+    (Test-NulByte $_.FullName) -and
+    $allowedBinaryExtensions -notcontains $_.Extension -and
+    $allowedBinaryPaths -notcontains $_.RelativePath
+}
+Assert-Condition `
+    (-not $unexpectedBinaryFiles) `
+    ("Unapproved binary content found (including extensionless payloads):" +
+        [Environment]::NewLine +
+        (($unexpectedBinaryFiles | ForEach-Object RelativePath) -join [Environment]::NewLine))
 
 $textExtensions = @(
     '.c', '.cpp', '.h', '.hpp', '.pro', '.qrc', '.ps1', '.md', '.yml',
@@ -131,7 +169,7 @@ Assert-Condition `
 
 $sensitiveTextFiles = $textFiles | Where-Object { $_.FullName -ne $PSCommandPath }
 $forbiddenTextPatterns = @(
-    '(?i)[A-Z]:[\\/]Users[\\/]',
+    '(?i)C:[\\/](?:Users|linshi)[\\/]',
     '(?<![0-9.])(?:10(?:\.[0-9]{1,3}){3}|192\.168(?:\.[0-9]{1,3}){2}|172\.(?:1[6-9]|2[0-9]|3[01])(?:\.[0-9]{1,3}){2})(?![0-9.])',
     '-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----'
 )
@@ -199,5 +237,5 @@ if ($RunHostTests) {
 
 Write-Host 'PASS: canonical NIKINIKI repository validation'
 Write-Host "Root: $root"
-Write-Host "Checked tracked source files: $($textFiles.Count)"
-Write-Host "Checked tracked PowerShell files: $($powerShellFiles.Count)"
+Write-Host "Checked public/proposed source files: $($textFiles.Count)"
+Write-Host "Checked public/proposed PowerShell files: $($powerShellFiles.Count)"

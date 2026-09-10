@@ -11,6 +11,17 @@
 .tools/
 .codex-remote-attachments/
 release/
+__pycache__/
+*.py[cod]
+
+# Local signing and unpacked SIS inspection output
+/Chain/*.pem
+/Chain/*.key
+/Chain/*.cer
+/NIKINIKI_*_debug*/
+/NIKINIKI_*_release*/
+/e7_cmp_gate_signed/
+/nikiniki_devvideo_capability_probe/
 
 # Symbian build/package outputs
 symbian/out/
@@ -31,6 +42,20 @@ symbian/app/obj/
 symbian/app/moc/
 symbian/app/ui/
 symbian/app/rcc/
+
+# qmake output accidentally generated below an `app/player` shadow directory.
+# Keep this file-level list narrow so a future real source directory is visible.
+symbian/app/player/.make.cache
+symbian/app/player/Makefile
+symbian/app/player/bld.inf
+symbian/app/player/*.loc
+symbian/app/player/*_exe.mmp
+symbian/app/player/*_reg.rss
+symbian/app/player/*_installer.pkg
+symbian/app/player/*_stub.pkg
+symbian/app/player/*_template.pkg
+symbian/app/player/qrc_*.cpp
+symbian/app/player/moc_*.cpp
 
 symbian/probes/*/.make.cache
 symbian/probes/*/Makefile

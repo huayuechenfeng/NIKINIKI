@@ -3,14 +3,37 @@ param()
 
 $ErrorActionPreference = 'Stop'
 
-$repositoryRoot = Split-Path -Parent $PSScriptRoot
-$markdownFiles = Get-ChildItem -LiteralPath $repositoryRoot -Recurse -File -Filter '*.md' |
-    Where-Object {
-        $_.FullName -notmatch '[\\/]\.git[\\/]' -and
-        $_.FullName -notmatch '[\\/]symbian[\\/]out[\\/]'
-    }
-
 $errors = New-Object System.Collections.Generic.List[string]
+$repositoryRoot = (Resolve-Path -LiteralPath (
+    Split-Path -Parent $PSScriptRoot)).Path
+$git = Get-Command git -ErrorAction SilentlyContinue | Select-Object -First 1
+if (-not $git) {
+    throw 'Git is required to enumerate public documentation inputs.'
+}
+
+# Check the public index plus every non-ignored new file proposed by the
+# current worktree. This deliberately never recurses through .tmp or another
+# ignored dependency/evidence tree, and a missing public file remains fatal.
+$candidateRelativePaths = @(
+    & $git.Source -c core.quotepath=false -C $repositoryRoot `
+        ls-files --cached --others --exclude-standard
+)
+if ($LASTEXITCODE -ne 0) {
+    throw 'Unable to enumerate public and proposed repository files.'
+}
+$candidateRelativePaths = @($candidateRelativePaths | Sort-Object -Unique)
+$markdownFiles = foreach ($relativePath in $candidateRelativePaths) {
+    if ([IO.Path]::GetExtension($relativePath) -ne '.md') {
+        continue
+    }
+    $fullPath = Join-Path $repositoryRoot (
+        $relativePath.Replace('/', [IO.Path]::DirectorySeparatorChar))
+    if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
+        throw "Public Markdown file is missing or unreadable: $relativePath"
+    }
+    Get-Item -LiteralPath $fullPath -Force -ErrorAction Stop
+}
+
 $linkPattern = [regex]'!?(?:\[[^\]]*\])\((?<target>[^)]+)\)'
 
 foreach ($file in $markdownFiles) {
@@ -93,4 +116,4 @@ if ($errors.Count -gt 0) {
     exit 1
 }
 
-Write-Host ("Documentation checks passed: {0} Markdown files" -f $markdownFiles.Count) -ForegroundColor Green
+Write-Host ("Documentation checks passed: {0} public/proposed Markdown files" -f $markdownFiles.Count) -ForegroundColor Green
