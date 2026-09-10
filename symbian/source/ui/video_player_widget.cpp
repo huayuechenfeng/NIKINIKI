@@ -12,6 +12,7 @@
 #include <QtCore/QDir>
 #include <QtCore/QEvent>
 #include <QtCore/QFile>
+#include <QtCore/QFileInfo>
 #include <QtCore/QPointer>
 #include <QtCore/QSettings>
 #include <QtCore/QTime>
@@ -22,6 +23,7 @@
 #include <QtGui/QFontMetrics>
 #include <QtGui/QImage>
 #include <QtGui/QKeyEvent>
+#include <QtGui/QMessageBox>
 #include <QtGui/QMouseEvent>
 #include <QtGui/QPainter>
 #include <QtGui/QResizeEvent>
@@ -33,6 +35,7 @@
 #ifdef Q_OS_SYMBIAN
 #include <e32std.h>
 #include <eikenv.h>
+#include <apgcli.h>
 #include <aknappui.h>
 #include <apgtask.h>
 #include <f32file.h>
@@ -320,6 +323,58 @@ static int requestPlayerOrientation(bool landscape)
     Q_UNUSED(landscape);
     return -5;
 #endif
+}
+
+static int requestExternalDocumentOpen(const QString &path)
+{
+#ifdef Q_OS_SYMBIAN
+    RApaLsSession session;
+    TInt error = session.Connect();
+    if (error != KErrNone)
+        return error;
+    const QString nativePath = QDir::toNativeSeparators(path);
+    const TPtrC descriptor(
+        reinterpret_cast<const TUint16 *>(nativePath.utf16()),
+        nativePath.length());
+    TThreadId threadId;
+    error = session.StartDocument(descriptor, threadId);
+    session.Close();
+    return error;
+#else
+    Q_UNUSED(path);
+    return -5;
+#endif
+}
+
+static quint32 readBigEndianWord(const QByteArray &data, int offset)
+{
+    if (offset < 0 || offset + 4 > data.size())
+        return 0;
+    return (static_cast<quint32>(
+                static_cast<unsigned char>(data.at(offset))) << 24) |
+        (static_cast<quint32>(
+                static_cast<unsigned char>(data.at(offset + 1))) << 16) |
+        (static_cast<quint32>(
+                static_cast<unsigned char>(data.at(offset + 2))) << 8) |
+        static_cast<quint32>(
+            static_cast<unsigned char>(data.at(offset + 3)));
+}
+
+static bool containsIsoBaseMediaFileType(const QByteArray &header)
+{
+    int offset = 0;
+    while (offset + 8 <= header.size()) {
+        const quint32 boxBytes = readBigEndianWord(header, offset);
+        const QByteArray type = header.mid(offset + 4, 4);
+        if (type == QByteArray("ftyp") && boxBytes >= 16)
+            return true;
+        if (boxBytes < 8 || boxBytes >
+            static_cast<quint32>(header.size() - offset)) {
+            return false;
+        }
+        offset += static_cast<int>(boxBytes);
+    }
+    return false;
 }
 
 // Software video has its own opaque native child window.  The persistent
@@ -1702,8 +1757,10 @@ private:
         return m_owner && m_owner->m_sessionActive &&
             (m_owner->m_isLive
                 ? m_owner->m_downloadReply != 0
-                : m_owner->m_playbackMode ==
-                    VideoPlayerWidget::DownloadThenPlayback) &&
+                : (m_owner->m_playbackMode ==
+                       VideoPlayerWidget::DownloadThenPlayback ||
+                   m_owner->m_playbackMode ==
+                       VideoPlayerWidget::ExternalPlayerPlayback)) &&
             !m_owner->m_localPlaybackActive &&
             !m_owner->m_policyRouteFailed;
     }
@@ -2116,6 +2173,10 @@ VideoPlayerWidget::VideoPlayerWidget(
       m_orientationStage(NativePortraitIdle),
       m_landscapeWorkAreaSeen(false), m_portraitWorkAreaSeen(false),
       m_restoreClosesSession(false),
+      m_externalHandoffPending(false),
+      m_externalHandoffActive(false),
+      m_externalApplicationLeft(false),
+      m_externalFailurePending(false),
       m_glesYuvActive(false), m_softVideoActive(false),
       m_sessionActive(false), m_sessionSerial(0)
 #ifdef WILIWILI_ENABLE_DEVVIDEO_DIRECT_PROBE
@@ -2210,7 +2271,7 @@ void VideoPlayerWidget::setPlaybackPreferences(
 {
     m_playbackMode = qBound(
         static_cast<int>(UrlStreamingPlayback), playbackMode,
-        static_cast<int>(DownloadThenPlayback));
+        static_cast<int>(ExternalPlayerPlayback));
     m_decoderMode = qBound(
         static_cast<int>(AutomaticDecoder), decoderMode,
         static_cast<int>(SoftwareOnlyDecoder));
@@ -2309,6 +2370,11 @@ void VideoPlayerWidget::openSource(
              << static_cast<void *>(m_player);
     const bool wasVisible = isVisible();
     cancelLocalDownloadFallback(true);
+    m_externalHandoffPending = false;
+    m_externalHandoffActive = false;
+    m_externalApplicationLeft = false;
+    m_externalFailurePending = false;
+    m_externalFailureMessage.clear();
     if (m_retryTimerId) {
         killTimer(m_retryTimerId);
         m_retryTimerId = 0;
@@ -2485,6 +2551,11 @@ void VideoPlayerWidget::loadSourceAt(int index)
     if (!m_player || index < 0 || index >= m_sourceUrls.size())
         return;
     m_sourceIndex = index;
+
+    if (!m_isLive && m_playbackMode == ExternalPlayerPlayback) {
+        openSelectedPlaybackSourceAt(index, "external-complete-download");
+        return;
+    }
 
 #if defined(Q_OS_SYMBIAN) && \
     (defined(WILIWILI_ENABLE_FFMPEG_SOFT_DECODER) || \
@@ -3429,6 +3500,11 @@ void VideoPlayerWidget::startLocalDownloadFallback(
         qDebug() << "WW:PLAYER_LOCAL_OPEN_FAILED" << m_downloadPath;
         delete m_downloadFile;
         m_downloadFile = 0;
+        if (m_playbackMode == ExternalPlayerPlayback) {
+            failExternalPlayerAction(
+                QString::fromUtf8("无法创建完整 MP4 临时文件，请检查可用空间。"));
+            return;
+        }
         m_policyRouteFailed = true;
         if (m_overlay)
             m_overlay->update();
@@ -3451,6 +3527,53 @@ void VideoPlayerWidget::startLocalDownloadFallback(
              << m_sourceUrls.at(sourceIndex).startsWith(
                     QString::fromLatin1("https://"));
     m_overlay->update();
+}
+
+bool VideoPlayerWidget::validateCompleteLocalMp4(QString *reason) const
+{
+    const QFileInfo information(m_downloadPath);
+    if (m_downloadPath.isEmpty() || !information.exists() ||
+        !information.isFile()) {
+        if (reason)
+            *reason = QString::fromUtf8("下载后的本地文件不存在。请重新打开视频。");
+        return false;
+    }
+    if (information.size() != m_downloadBytes ||
+        (m_downloadTotalBytes > 0 &&
+         information.size() != m_downloadTotalBytes)) {
+        if (reason)
+            *reason = QString::fromUtf8("下载文件不完整，未交给系统播放器。");
+        return false;
+    }
+    QFile file(m_downloadPath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        if (reason)
+            *reason = QString::fromUtf8("无法重新读取下载文件。");
+        return false;
+    }
+    const QByteArray header = file.read(4096);
+    file.close();
+    if (!containsIsoBaseMediaFileType(header)) {
+        if (reason)
+            *reason = QString::fromUtf8("下载结果未通过 MP4 文件头核验。");
+        return false;
+    }
+    return true;
+}
+
+void VideoPlayerWidget::failExternalPlayerAction(const QString &message)
+{
+    if (m_playbackMode != ExternalPlayerPlayback) {
+        m_policyRouteFailed = true;
+        if (m_overlay)
+            m_overlay->update();
+        return;
+    }
+    m_externalHandoffPending = false;
+    m_externalFailurePending = true;
+    m_externalFailureMessage = message;
+    qDebug() << "WW:EXTERNAL_PLAYER_PREPARE_FAILED" << message;
+    closePlayer();
 }
 
 void VideoPlayerWidget::openLocalDownloadForPlayback(const char *reason)
@@ -3488,6 +3611,11 @@ void VideoPlayerWidget::pollLocalDownloadFallback()
         if (written != available.size()) {
             qDebug() << "WW:PLAYER_LOCAL_WRITE_FAILED"
                      << written << available.size();
+            if (m_playbackMode == ExternalPlayerPlayback) {
+                failExternalPlayerAction(
+                    QString::fromUtf8("保存完整 MP4 失败，请检查可用空间。"));
+                return;
+            }
             cancelLocalDownloadFallback(true);
             m_policyRouteFailed = true;
             if (m_overlay)
@@ -3518,6 +3646,11 @@ void VideoPlayerWidget::pollLocalDownloadFallback()
         m_downloadBytes > maximumBytes) {
         qDebug() << "WW:PLAYER_LOCAL_TOO_LARGE"
                  << declaredBytes << m_downloadBytes;
+        if (m_playbackMode == ExternalPlayerPlayback) {
+            failExternalPlayerAction(
+                QString::fromUtf8("视频超过本地下载上限，未交给系统播放器。"));
+            return;
+        }
         cancelLocalDownloadFallback(true);
         m_policyRouteFailed = true;
         if (m_overlay)
@@ -3565,12 +3698,29 @@ void VideoPlayerWidget::pollLocalDownloadFallback()
             m_policyRouteFailed = true;
             qDebug() << "WW:PLAYER_LOCAL_FALLBACK_EXHAUSTED"
                      << m_downloadSourceIndex + 1 << m_sourceUrls.size();
+            if (m_playbackMode == ExternalPlayerPlayback) {
+                failExternalPlayerAction(
+                    QString::fromUtf8("完整 MP4 下载失败，所有备用地址均不可用。"));
+                return;
+            }
             if (m_overlay)
                 m_overlay->update();
         }
         return;
     }
 
+    if (m_playbackMode == ExternalPlayerPlayback) {
+        QString validationError;
+        if (!validateCompleteLocalMp4(&validationError)) {
+            failExternalPlayerAction(validationError);
+            return;
+        }
+        m_externalHandoffPending = true;
+        qDebug() << "WW:EXTERNAL_PLAYER_LOCAL_READY"
+                 << status << m_downloadBytes << m_downloadPath;
+        closePlayer();
+        return;
+    }
     if (!m_localPlaybackActive)
         openLocalDownloadForPlayback("download-complete");
     qDebug() << "WW:PLAYER_LOCAL_READY"
@@ -4463,7 +4613,7 @@ void VideoPlayerWidget::closePlayer()
         m_delegate->videoPlayerClearSoftwareVideo();
     m_glesYuvActive = false;
     cancelAvcHardwareProbe();
-    cancelLocalDownloadFallback(true);
+    cancelLocalDownloadFallback(!m_externalHandoffPending);
     hide();
     releasePlaybackSurfaceForOrientation();
     m_restoreClosesSession = true;
@@ -4501,11 +4651,105 @@ void VideoPlayerWidget::finishCloseAfterOrientation()
              << static_cast<void *>(m_softVideoSurface)
              << static_cast<void *>(m_player)
              << "orientation" << static_cast<int>(m_orientationStage);
-    requestPlayerPlatformForeground();
+    const bool externalHandoff = m_externalHandoffPending;
+    if (!externalHandoff)
+        requestPlayerPlatformForeground();
     if (m_delegate)
-        m_delegate->videoPlayerDidClose();
+        m_delegate->videoPlayerDidClose(externalHandoff);
     m_closing = false;
     m_restoreClosesSession = false;
+    if (externalHandoff || m_externalFailurePending) {
+        QTimer::singleShot(
+            0, this, SLOT(completeExternalPlayerAction()));
+    }
+}
+
+void VideoPlayerWidget::completeExternalPlayerAction()
+{
+    if (m_externalFailurePending) {
+        const QString message = m_externalFailureMessage.isEmpty()
+            ? QString::fromUtf8("无法准备完整本地 MP4。")
+            : m_externalFailureMessage;
+        m_externalFailurePending = false;
+        m_externalFailureMessage.clear();
+        QMessageBox::warning(
+            m_returnWidget, QString::fromUtf8("系统播放器"), message);
+        return;
+    }
+    if (!m_externalHandoffPending)
+        return;
+
+    m_externalHandoffPending = false;
+    QString validationError;
+    if (!validateCompleteLocalMp4(&validationError)) {
+        qDebug() << "WW:EXTERNAL_PLAYER_HANDOFF_REJECTED"
+                 << validationError;
+        QMessageBox::warning(
+            m_returnWidget, QString::fromUtf8("系统播放器"),
+            validationError);
+        return;
+    }
+
+    // The internal controller is retained for later native sessions but owns
+    // no active media when AppArc receives the complete local filename.
+    if (m_player) {
+        m_player->stop();
+        m_player->clearMedia();
+    }
+    // AppArc receives only this local filename. Drop every signed URL,
+    // Referer and Cookie before another application is started.
+    m_sourceUrls.clear();
+    m_referer.clear();
+    m_cookieHeader.clear();
+    const int error = requestExternalDocumentOpen(m_downloadPath);
+    if (error != 0) {
+        qDebug() << "WW:EXTERNAL_PLAYER_HANDOFF_FAILED" << error;
+        const QString message = (error == -1 || error == -5)
+            ? QString::fromUtf8(
+                "未找到可打开 MP4 的系统应用（错误 %1）。")
+                  .arg(error)
+            : QString::fromUtf8(
+                "系统播放器启动请求失败（错误 %1）。")
+                  .arg(error);
+        QMessageBox::warning(
+            m_returnWidget, QString::fromUtf8("系统播放器"), message);
+        return;
+    }
+
+    m_externalHandoffActive = true;
+    m_externalApplicationLeft = false;
+    qDebug() << "WW:EXTERNAL_PLAYER_HANDOFF_ACCEPTED"
+             << "playbackUnverified" << 1
+             << m_downloadBytes << m_downloadPath;
+}
+
+void VideoPlayerWidget::handleApplicationDeactivated()
+{
+    if (!m_externalHandoffActive || m_externalApplicationLeft)
+        return;
+    m_externalApplicationLeft = true;
+    qDebug() << "WW:EXTERNAL_PLAYER_APPLICATION_LEFT"
+             << "playbackUnverified" << 1;
+}
+
+void VideoPlayerWidget::handleApplicationActivated()
+{
+    if (!m_externalHandoffActive)
+        return;
+    const bool fileAvailable = QFileInfo(m_downloadPath).isFile();
+    qDebug() << "WW:EXTERNAL_PLAYER_RETURNED"
+             << "leftObserved" << m_externalApplicationLeft
+             << "fileAvailable" << fileAvailable
+             << "playbackUnverified" << 1;
+    m_externalHandoffActive = false;
+    m_externalApplicationLeft = false;
+    if (!fileAvailable) {
+        m_downloadPath.clear();
+        QMessageBox::warning(
+            m_returnWidget, QString::fromUtf8("系统播放器"),
+            QString::fromUtf8(
+                "外部播放器返回后本地 MP4 已不可用；请重新打开视频下载。"));
+    }
 }
 
 void VideoPlayerWidget::restoreMainWindow()

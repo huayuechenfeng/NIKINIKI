@@ -54,9 +54,13 @@ preflight 获取失败            → 保守回到 MMF，并保留失败日志
 唯一透明 ARGB 顶层只绘制弹幕和控制。播放器完整原生对象图跨会话复用，横屏下视频、UI、
 弹幕和输入都直接使用 640×360 坐标。
 
-普通产品只提供 native MMF/FFmpeg 路径。Qt Mobility 兼容后端、旧窗口对照、
+普通产品的内置播放只提供 native MMF/FFmpeg 路径。Qt Mobility 兼容后端、旧窗口对照、
 six-observation 与 NanoVG 统计已冻结为独立候选/研究线，不在普通设置中展示。
 该调整见 [ADR-0010](decisions/0010-freeze-qt-candidate-and-restore-native.md)。
+
+设置中另有“完整下载后交给系统播放器”：它只在点播 MP4 完整落盘并通过文件大小及
+`ftyp` 文件头核验后，停放内置媒体、恢复竖屏，再把本地文件名交给 AppArc。Cookie、
+Referer 和签名 URL 不参与交接；`StartDocument()` 返回0只记录为 API 接受，不能写成实际播放成功。
 
 实现细节、状态机和日志标记见
 [播放器架构](developer/PLAYBACK_ARCHITECTURE_ZH.md)。
@@ -89,11 +93,13 @@ six-observation 与 NanoVG 统计已冻结为独立候选/研究线，不在普�
 - Debug 和 Release 普通构建均已通过，1.0 Release 为 `sbs errors: 0`，32 条为既有 SDK/GCCE 警告。
 - 用户已完成 1.2 Nokia 603 功能验收：首页卡片滚动优化、音量控制、相关推荐、动态正文与评论
   排版均确认可用；普通滚动弹幕从右边缘进入，顶部/底部固定弹幕保持居中。
-- E7 黑屏研究已把最早动态边界收窄到 camera logical channel
-  `DoControl(function=0, a1=(void*)7, a2=bounded request)` 返回 `-2`；当前没有
-  覆盖全部有限候选的单点 ARM 观测契约，因此停止设备执行并转为离线长期研究。
-  完整证据只见 [E7 MMF Prepare 错误来源](research/player/E7_MMF_PREPARE_ERROR_SOURCE_ZH.md)
-  和[设备矩阵](reference/DEVICE_TEST_MATRIX.md#e7-hx-timed-20260908)；它们不构成播放通过。
+- E7 黑屏设备执行已按停止门冻结，转为离线长期研究；完整边界、证据和续研入口只见
+  [E7 MMF Prepare 错误来源](research/player/E7_MMF_PREPARE_ERROR_SOURCE_ZH.md)和
+  [设备矩阵](reference/DEVICE_TEST_MATRIX.md#e7-hx-timed-20260908)，它们不构成播放通过。
+- 系统播放器交接的设置迁移、完整下载、MP4 核验、失败提示、竖屏恢复、返回观测和重复进入
+  已完成源码实现；`Symbian3Qt474` GCCE Debug/Release 均为 `sbs errors: 0`、33 条
+  SDK/GCCE 与既有源码警告，开发签名 SIS 打包完成，文档、公开边界及主机测试通过。实际关联处理器、
+  离开应用、外部画面/声音及返回仍待独立真机验收。
 
 原始测量、样本和否定实验均保存在[播放器研究索引](research/README_ZH.md)，不在本页展开。
 
@@ -107,7 +113,8 @@ six-observation 与 NanoVG 统计已冻结为独立候选/研究线，不在普�
   不阻塞先交付明确的完整本地 MP4 外部播放器交接；
 - 更多机型、H.264 profile/level、分辨率、码率和 CDN 组合的兼容矩阵；
 - ref7 通用特征补丁在 700/701/808、N8/C7/E7/X7 等静态候选上的独立真机资格测试；
-- 内置软件解码失败或性能不足时的明确外部播放器交接；
+- 系统播放器交接的真机验收：无关联处理器/启动错误、API 接受、应用离开、实际画面/声音、
+  返回、再次进入与缓存清理必须分别记录；API 接受不计播放通过；
 - 2026-09-01 第二轮 CODA 已把直播边界定死：首条 FLV 下载到 8,432,361 字节时，
   共享 `RFile` 句柄以 `share-read-write 0` 成功交给 MMF，但本地 `.flv` 的
   `NATIVE_MMF_OPEN_COMPLETE` 仍返回 `KErrNotSupported (-5)`。这证明 Nokia 603 的 MMF 既不能

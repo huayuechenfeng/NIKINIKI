@@ -68,7 +68,7 @@ void SectionScreen::setImageLoadingEnabled(bool enabled)
 void SectionScreen::setPlaybackPreferences(
     int playbackMode, int decoderMode)
 {
-    m_playbackMode = qBound(0, playbackMode, 2);
+    m_playbackMode = qBound(0, playbackMode, 3);
     m_decoderMode = qBound(0, decoderMode, 2);
 }
 
@@ -489,12 +489,14 @@ void SectionScreen::drawPreferencePage(
     const QString playbackTitles[] = {
         QString::fromUtf8("流式播放"),
         QString::fromUtf8("OpenFileL 边下边播"),
-        QString::fromUtf8("下载后播放")
+        QString::fromUtf8("下载后播放"),
+        QString::fromUtf8("交给系统播放器")
     };
     const QString playbackSubtitles[] = {
         QString::fromUtf8("直接把网络地址交给 MMF OpenUrlL"),
         QString::fromUtf8("预缓冲后打开持续增长的本地文件"),
-        QString::fromUtf8("完整下载并显示进度，完成后开始播放")
+        QString::fromUtf8("完整下载并显示进度，完成后开始播放"),
+        QString::fromUtf8("仅交接完整本地 MP4；外部播放结果需另行确认")
     };
     const QString decoderTitles[] = {
         QString::fromUtf8("自动选择"),
@@ -513,7 +515,8 @@ void SectionScreen::drawPreferencePage(
     const float cardGap = 14.0f;
     float cardY = 78.0f;
     int index;
-    for (index = 0; index < 3; ++index) {
+    const int optionCount = playback ? 4 : 3;
+    for (index = 0; index < optionCount; ++index) {
         m_preferenceOptionHitBoxes[index] =
             QRectF(cardX, cardY, cardWidth, cardHeight);
         nvgBeginPath(context);
@@ -988,12 +991,14 @@ void SectionScreen::draw(NVGcontext *context, float width, float height)
         const QString playbackTitles[] = {
             QString::fromLatin1("PLAYBACK / OPENURL"),
             QString::fromLatin1("PLAYBACK / OPENFILE"),
-            QString::fromLatin1("PLAYBACK / DOWNLOAD")
+            QString::fromLatin1("PLAYBACK / DOWNLOAD"),
+            QString::fromLatin1("PLAYBACK / EXTERNAL")
         };
         const QString playbackSubtitles[] = {
             QString::fromUtf8("当前：流式播放（OpenUrlL）· 点击选择"),
             QString::fromUtf8("当前：OpenFileL 边下边播 · 点击选择"),
-            QString::fromUtf8("当前：完整下载后播放 · 点击选择")
+            QString::fromUtf8("当前：完整下载后播放 · 点击选择"),
+            QString::fromUtf8("当前：完整下载后交给系统播放器 · 点击选择")
         };
         drawInfoCard(context, cardX, cardY, cardWidth,
                      playbackTitles[m_playbackMode],
@@ -1132,7 +1137,9 @@ SectionScreen::Action SectionScreen::pointerRelease(
         if (m_preferenceBackHitBox.contains(QPointF(position)))
             return PreferenceBackAction;
         int index;
-        for (index = 0; index < 3; ++index) {
+        const int optionCount = m_preferencePage == PlaybackPreferencePage
+            ? 4 : 3;
+        for (index = 0; index < optionCount; ++index) {
             if (!m_preferenceOptionHitBoxes[index].contains(
                     QPointF(position))) {
                 continue;

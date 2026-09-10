@@ -29,6 +29,7 @@ public:
         SelectUrlStreamingAction,
         SelectOpenFileStreamingAction,
         SelectDownloadThenPlaybackAction,
+        SelectExternalPlayerAction,
         SelectAutomaticDecoderAction,
         SelectHardwareOnlyDecoderAction,
         SelectSoftwareOnlyDecoderAction,
@@ -166,7 +167,7 @@ private:
     QRectF m_aboutHitBox;
     QRectF m_aboutBackHitBox;
     QRectF m_preferenceBackHitBox;
-    QRectF m_preferenceOptionHitBoxes[3];
+    QRectF m_preferenceOptionHitBoxes[4];
     int m_messageTab;
     bool m_imageLoadingEnabled;
     int m_playbackMode;

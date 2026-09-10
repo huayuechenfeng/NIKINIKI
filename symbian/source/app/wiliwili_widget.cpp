@@ -435,6 +435,23 @@ WiliwiliWidget::WiliwiliWidget(QWidget *parent)
         QSettings::IniFormat, QSettings::UserScope,
         QString::fromLatin1("wiliwili"),
         QString::fromLatin1("wiliwili_symbian"));
+    const QString legacyBackendKey =
+        QString::fromLatin1("player/backend_mode");
+    if (startupSettings.contains(legacyBackendKey)) {
+        const int legacyBackend = startupSettings.value(
+            legacyBackendKey, 0).toInt();
+        if (legacyBackend == 1) {
+            startupSettings.setValue(
+                QString::fromLatin1("player/playback_mode"),
+                static_cast<int>(
+                    VideoPlayerWidget::ExternalPlayerPlayback));
+        }
+        startupSettings.remove(legacyBackendKey);
+        startupSettings.sync();
+        qDebug() << "WW:PLAYER_LEGACY_BACKEND_MIGRATED"
+                 << legacyBackend
+                 << (legacyBackend == 1 ? "EXTERNAL" : "NATIVE");
+    }
     m_contentImageLimit = startupSettings.value(
         QString::fromLatin1("ui/content_images"), 14).toInt() > 0
         ? 14 : 0;
@@ -444,7 +461,7 @@ WiliwiliWidget::WiliwiliWidget(QWidget *parent)
             QString::fromLatin1("player/playback_mode"),
             static_cast<int>(
                 VideoPlayerWidget::UrlStreamingPlayback)).toInt(),
-        static_cast<int>(VideoPlayerWidget::DownloadThenPlayback));
+        static_cast<int>(VideoPlayerWidget::ExternalPlayerPlayback));
     m_decoderMode = qBound(
         static_cast<int>(VideoPlayerWidget::AutomaticDecoder),
         startupSettings.value(
@@ -3085,7 +3102,7 @@ void WiliwiliWidget::videoPlayerRequestQuality(int quality)
         startVideoPlayback(quality, true);
 }
 
-void WiliwiliWidget::videoPlayerDidClose()
+void WiliwiliWidget::videoPlayerDidClose(bool externalHandoffPending)
 {
     videoPlayerClearSoftwareVideo();
     qDebug() << "WW:PLAYER_CLOSED_RESTORE";
@@ -3105,13 +3122,16 @@ void WiliwiliWidget::videoPlayerDidClose()
     // the same controller, video host and MMF observer.
     qDebug() << "WW:PLAYER_SESSION_RETAINED"
              << static_cast<void *>(m_videoPlayer);
-    m_hasActivated = false;
+    m_hasActivated = externalHandoffPending;
     showFullScreen();
-    raise();
-    activateWindow();
-    setFocus(Qt::ActiveWindowFocusReason);
+    if (!externalHandoffPending) {
+        raise();
+        activateWindow();
+        setFocus(Qt::ActiveWindowFocusReason);
+    }
     updateGL();
-    scheduleForegroundRestore();
+    if (!externalHandoffPending)
+        scheduleForegroundRestore();
 }
 
 bool WiliwiliWidget::videoPlayerCanPresentYuv420() const
@@ -3546,7 +3566,7 @@ void WiliwiliWidget::setPlaybackMode(int mode)
 {
     m_playbackMode = qBound(
         static_cast<int>(VideoPlayerWidget::UrlStreamingPlayback), mode,
-        static_cast<int>(VideoPlayerWidget::DownloadThenPlayback));
+        static_cast<int>(VideoPlayerWidget::ExternalPlayerPlayback));
     QSettings settings(
         QSettings::IniFormat, QSettings::UserScope,
         QString::fromLatin1("wiliwili"),
@@ -3564,7 +3584,9 @@ void WiliwiliWidget::setPlaybackMode(int mode)
             : m_playbackMode ==
                   VideoPlayerWidget::OpenFileStreamingPlayback
             ? QString::fromUtf8("播放方式：OpenFileL 边下边播")
-            : QString::fromUtf8("播放方式：下载后播放"));
+            : m_playbackMode == VideoPlayerWidget::DownloadThenPlayback
+            ? QString::fromUtf8("播放方式：下载后播放")
+            : QString::fromUtf8("播放方式：完整下载后交给系统播放器"));
 }
 
 void WiliwiliWidget::setDecoderMode(int mode)
@@ -4582,8 +4604,8 @@ void WiliwiliWidget::mouseReleaseEvent(QMouseEvent *event)
                     SectionScreen::DecoderPreferencePage);
                 updateGL();
             } else if (action >= SectionScreen::SelectUrlStreamingAction &&
-                       action <=
-                           SectionScreen::SelectDownloadThenPlaybackAction) {
+                        action <=
+                            SectionScreen::SelectExternalPlayerAction) {
                 setPlaybackMode(
                     static_cast<int>(action) -
                     static_cast<int>(
@@ -4755,6 +4777,12 @@ bool WiliwiliWidget::eventFilter(QObject *watched, QEvent *event)
             watched == this && event->type() == QEvent::WindowActivate;
         const bool applicationDeactivated =
             event->type() == QEvent::ApplicationDeactivate;
+        if (m_videoPlayer) {
+            if (applicationActivated)
+                m_videoPlayer->handleApplicationActivated();
+            else if (applicationDeactivated)
+                m_videoPlayer->handleApplicationDeactivated();
+        }
         if (playerOwnsForeground() &&
             (applicationActivated || mainWindowActivated ||
              applicationDeactivated)) {

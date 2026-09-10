@@ -189,6 +189,26 @@ stop/park media and decoder
 
 每个等待阶段有保护超时。失败时结束本次播放并尝试恢复主页，不回退到虚拟旋转。
 
+## 外部播放器交接
+
+“交给系统播放器”不是第三个内置后端，也不改变 native MMF/FFmpeg 默认值。它仅适用于点播：
+
+```text
+完整下载到私有临时 MP4
+→ 核对响应完成、实际/声明大小和 ISO BMFF ftyp
+→ 停止并清空内置媒体，取消网络/Range 回调
+→ 隐藏播放器并按既有状态机恢复物理 360×640
+→ 清空 Cookie、Referer、签名 URL
+→ AppArc StartDocument(local filename)
+```
+
+`StartDocument()` 返回0只表示系统接受交接请求。应用分别记录
+`EXTERNAL_PLAYER_HANDOFF_ACCEPTED`、后续 `EXTERNAL_PLAYER_APPLICATION_LEFT` 和
+`EXTERNAL_PLAYER_RETURNED`；所有标记都带有“播放未验证”的语义，外部画面/声音只能由真机验收。
+无文件关联、启动错误、下载/写入/大小/文件头失败会在恢复主界面后显示明确提示。外部应用使用期间
+保留本地 MP4；返回后播放器对象仍可重新进入，下一媒体会先清理旧临时文件。旧候选设置
+`player/backend_mode=1` 一次性迁移为此外部模式并删除旧键；无旧键时仍默认 native `OpenUrlL`。
+
 ## 会话生命周期
 
 以下对象创建一次并存活到应用退出：
@@ -216,6 +236,8 @@ pause、seek、倍速、媒体会话变化会使缓存失效。普通 MMF 播放
 - soft：`FFMPEG_SOFT_READY ... RGB565_LUT2X2`、`SOFT_SURFACE_ACTIVE`、
   `SOFT_SURFACE_FIRST_PAINT`；
 - 返回：`PLAYER_NATIVE_PORTRAIT_FULLSCREEN_READY`；
+- 外部交接：`EXTERNAL_PLAYER_LOCAL_READY`、`EXTERNAL_PLAYER_HANDOFF_ACCEPTED`
+  （不是播放成功）、`EXTERNAL_PLAYER_APPLICATION_LEFT`、`EXTERNAL_PLAYER_RETURNED`；
 - 聚合性能：`SOFT_STATS`。
 
 逐帧日志会显著干扰旧设备时序，普通验证优先使用聚合计数。

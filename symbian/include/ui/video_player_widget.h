@@ -38,7 +38,7 @@ class VideoPlayerDelegate
 public:
     virtual ~VideoPlayerDelegate() {}
     virtual void videoPlayerRequestQuality(int quality) = 0;
-    virtual void videoPlayerDidClose() = 0;
+    virtual void videoPlayerDidClose(bool externalHandoffPending) = 0;
     virtual bool videoPlayerCanPresentYuv420() const = 0;
     virtual void videoPlayerPresentYuv420(
         const Yuv420Frame &frame) = 0;
@@ -53,7 +53,8 @@ public:
     enum PlaybackMode {
         UrlStreamingPlayback = 0,
         OpenFileStreamingPlayback = 1,
-        DownloadThenPlayback = 2
+        DownloadThenPlayback = 2,
+        ExternalPlayerPlayback = 3
     };
 
     enum DecoderMode {
@@ -75,6 +76,8 @@ public:
     void setDanmaku(const QVector<DanmakuItemCompat> &items);
     void adjustPersistentVolume(int delta);
     void closePlayer();
+    void handleApplicationActivated();
+    void handleApplicationDeactivated();
 
     bool isPlayerVisible() const;
     bool ownsForeground() const;
@@ -105,6 +108,7 @@ private slots:
     void beginNativePortraitRestore();
     void commitNativePortraitWindow();
     void completeNativePortraitFullscreen();
+    void completeExternalPlayerAction();
     void onDevVideoDirectProbeFinished(
         bool phaseAPassed, bool phaseBPassed);
     void closeDevVideoDirectProbe();
@@ -151,6 +155,8 @@ private:
     void openLocalDownloadForPlayback(const char *reason);
     void pollLocalDownloadFallback();
     void cancelLocalDownloadFallback(bool removeFile);
+    bool validateCompleteLocalMp4(QString *reason) const;
+    void failExternalPlayerAction(const QString &message);
     void startAvcHardwareProbeMetadata(int sourceIndex);
     void pollAvcHardwareProbe();
     void cancelAvcHardwareProbe();
@@ -248,6 +254,7 @@ private:
     qint64 m_downloadTotalBytes;
     qint64 m_liveFlvAudioBytes;
     QString m_downloadPath;
+    QString m_externalFailureMessage;
     QTime m_sourceClock;
     int m_automaticFallbackTarget;
     int m_playbackMode;
@@ -270,6 +277,10 @@ private:
     bool m_landscapeWorkAreaSeen;
     bool m_portraitWorkAreaSeen;
     bool m_restoreClosesSession;
+    bool m_externalHandoffPending;
+    bool m_externalHandoffActive;
+    bool m_externalApplicationLeft;
+    bool m_externalFailurePending;
     bool m_glesYuvActive;
     bool m_softVideoActive;
     bool m_sessionActive;

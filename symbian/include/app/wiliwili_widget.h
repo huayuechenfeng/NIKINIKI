@@ -86,7 +86,7 @@ private:
     void startLivePlayback(const RecommendVideoResultCompat &card);
     void requestLivePlayback(int quality, bool qualitySwitch);
     virtual void videoPlayerRequestQuality(int quality);
-    virtual void videoPlayerDidClose();
+    virtual void videoPlayerDidClose(bool externalHandoffPending);
     virtual bool videoPlayerCanPresentYuv420() const;
     virtual void videoPlayerPresentYuv420(
         const Yuv420Frame &frame);

@@ -137,7 +137,7 @@ The WLAN address is DHCP-assigned and must be rechecked in CODA before later ses
 | QR/session | Cookie summary true/true/true, account data loads, session survives clean restart | Next regression |
 | Search and content | Video/user search, input focus, comments/thread replies, history, favorites, later, uploads and following | Next regression |
 | Player controls and layers | Controls, drag, quality, danmaku, dense-comment soak, lock/unlock and task switch | Next regression |
-| External-player fallback | Built-in software failure shows explicit confirmation, protects Cookie/URL and returns with correct orientation/foreground state | Next implementation |
+| External-player handoff | Select the explicit mode, complete one local MP4 download, verify AppArc acceptance, actual external picture/audio, NIKINIKI deactivation, portrait return, second use and cache cleanup separately. Repeat with no MP4 handler and a forced launch/download failure; Cookie/URL must never enter the handoff. | Now / device acceptance; source and host build are not a pass |
 | Live playback | Build and retest the on-device FLV demux candidate. Require FLV AVC/AAC sequence-header markers, MMF opening the extracted AAC clock, FFmpeg first picture on the opaque software surface, audible synchronized audio, bounded queues, one-way CDN failover and clean return. The rejected local-FLV `OpenFileL` route must not run. Live danmaku remains later scope. | Now |
 | 1.2 dynamic correction | New SIS keeps portrait/square/landscape media proportions, permits full variable-height scrolling without colored overlays, and opens text/image/column正文 plus comments. | Now |
 
