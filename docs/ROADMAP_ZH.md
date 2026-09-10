@@ -50,12 +50,11 @@ GCCE 构建、开发 SIS 打包、文档、公开边界及主机检查已通过�
 
 - 在原版 Symbian³、Anna 上安装与 Belle 相同的 1.2.0 开发 SIS；
 - 核验 Qt 4.7.4、Qt Mobility 1.2.x、TLS、冷启动、首页图片、登录和播放；
-- 在 N8/X7/C7 Belle 对同一 MP4 固定“全程硬解”，依次比较 `OpenUrlL`、
-  增长文件 `OpenFileL`、完整下载 `OpenFileL`，禁止同时改变清晰度或解码器；
+- 初代 Symbian³ 的黑屏验证、停止门和取证方法不在活路线图展开；续研只按
+  [E7 MMF Prepare 错误来源](research/player/E7_MMF_PREPARE_ERROR_SOURCE_ZH.md)和
+  [设备矩阵](reference/DEVICE_TEST_MATRIX.md#e7-hx-timed-20260908)执行；
 - Nokia 603 已通过共享 `RFile` 增长文件、best-effort 软件视频轨关闭、8 MiB 起播预缓冲、
   完整下载进度 UI 和独立设置列表复测；
-- 若两个 `OpenFileL` 路径有画面而 `OpenUrlL` 黑屏，归因到 MMF streaming/controller；
-  若三个应用内路径均黑而系统播放器播放同一本地文件正常，再进入 RWindow/Surface 显示链调查；
 - 收集系统版本、设备型号、运行库版本和完整结果，不把“预期兼容”记为通过。
 
 ### 4. 首次启动跨设备回归
@@ -81,16 +80,15 @@ H.264 ref7 支线已经按 H1 结题：Nokia 603 的目标合法 R7 graph 可由
 admission patch 两条路径正确硬解。该项目不再占用 Now/Next；最终证据、产品边界和归档入口见
 [H.264 ref7 硬件解码结题报告](research/player/H264_REF7_HARDWARE_DECODE_FINAL_REPORT_ZH.md)。
 
-E7 黑屏取证已收窄到 camera logical channel 返回 `-2`；当前没有能以单次定点观测
-区分全部有限候选的 ARM 契约，因此不再构建或执行新 observer。Qt 候选和诊断入口按
-[ADR-0010](decisions/0010-freeze-qt-candidate-and-restore-native.md)冻结；完整调查只见
+E7 黑屏研究已按 [ADR-0010](decisions/0010-freeze-qt-candidate-and-restore-native.md)冻结，
+不占用 Now/Next；边界、证据和续研入口只见
 [E7 MMF Prepare 错误来源](research/player/E7_MMF_PREPARE_ERROR_SOURCE_ZH.md)。
 
 ## Later：不阻塞播放器主线
 
 - 直播断流恢复、画质切换和直播弹幕；
 - 局部布局和其他 UI polish；
-- DevVideo post-processor memory-output 等底层替代方案（E7 当前支线已止损）。
+- 已封存的底层媒体替代方案只在路线图明确重开研究后再评估。
 - 对可选 ref7 补丁做跨设备真机资格测试；静态特征命中不计通过，也不阻塞播放器发布。
 
 阶段性 H.264 研究材料已归档在 `research/player/post-1.0/`；其他研究候选只有建立当前回归基线后，

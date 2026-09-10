@@ -109,8 +109,6 @@ Referer 和签名 URL 不参与交接；`StartDocument()` 返回0只记录为 AP
 - 正式 1.0 包中真实 header preflight 的 `ACCEPT → MMF` 与 `REJECT → FFMPEG` 真机标记；
 - 独立不透明 soft surface 与 500 ms `PositionL()` 校准方案的专项真机遥测，包括
   `softSurfacePresented>0`、`overlayVideoDrawMs=0` 和 position cache 命中；
-- 初代 Symbian³ 的 native MMF 黑屏原因仍未修复；研究线按上述停止门保持冻结，
-  不阻塞先交付明确的完整本地 MP4 外部播放器交接；
 - 更多机型、H.264 profile/level、分辨率、码率和 CDN 组合的兼容矩阵；
 - ref7 通用特征补丁在 700/701/808、N8/C7/E7/X7 等静态候选上的独立真机资格测试；
 - 系统播放器交接的真机验收：无关联处理器/启动错误、API 接受、应用离开、实际画面/声音、
@@ -132,7 +130,6 @@ Referer 和签名 URL 不参与交接；`StartDocument()` 返回0只记录为 AP
 - ARM1176 上的软件解码不是满帧路径，不同码流会有明显性能差异；
 - 当前只把 Nokia 603 / Belle 视为完整设备基线；700 / 701 / 808 保持支持目标，但不能把
   未收集的独立样本写成真机通过；
-- Nokia N8 / E7 / X7 / C7 等初代 Symbian³ 设备的播放黑屏 bug 尚未修复，1.2 暂不支持；
 - ref7 补丁需要深度破解、只能手动启用；目前只有 Nokia 603 SW113 真机通过，其他固件即使特征
   唯一命中也不构成兼容或安全保证；
 - 直播远程 `OpenUrlL()` 和本地增长 FLV `OpenFileL()` 都已由 Nokia 603 CODA 日志确认为
