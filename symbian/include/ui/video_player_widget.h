@@ -54,7 +54,9 @@ public:
         UrlStreamingPlayback = 0,
         OpenFileStreamingPlayback = 1,
         DownloadThenPlayback = 2,
-        ExternalPlayerPlayback = 3
+        SystemUrlStreamingPlayback = 3,
+        SystemOpenFileStreamingPlayback = 4,
+        SystemDownloadThenPlayback = 5
     };
 
     enum DecoderMode {
@@ -254,6 +256,7 @@ private:
     qint64 m_downloadTotalBytes;
     qint64 m_liveFlvAudioBytes;
     QString m_downloadPath;
+    QString m_externalHandoffResource;
     QString m_externalFailureMessage;
     QTime m_sourceClock;
     int m_automaticFallbackTarget;
@@ -281,6 +284,7 @@ private:
     bool m_externalHandoffActive;
     bool m_externalApplicationLeft;
     bool m_externalFailurePending;
+    bool m_externalHandoffRemote;
     bool m_glesYuvActive;
     bool m_softVideoActive;
     bool m_sessionActive;

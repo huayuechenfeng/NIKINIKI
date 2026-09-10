@@ -191,7 +191,24 @@ stop/park media and decoder
 
 ## 外部播放器交接
 
-“交给系统播放器”不是第三个内置后端，也不改变 native MMF/FFmpeg 默认值。它仅适用于点播：
+“交给系统播放器”不是第三个内置后端，也不改变 native MMF/FFmpeg 默认值。它仅适用于点播，
+设置页按内置/系统播放器各列出流式、边下边播和下载后三种选择。
+
+系统流式：
+
+```text
+固定请求并核对 Q16 / 360P progressive MP4
+→ 停止并清空内置媒体，取消内部网络/Range 回调
+→ 隐藏播放器并按既有状态机恢复物理 360×640
+→ 清空内部 Cookie、Referer 和源地址列表
+→ AppArc StartDocument(signed HTTP(S) URL, video/mp4)
+```
+
+AppArc 只能收到签名 URL，不能继承 NIKINIKI 的 Cookie 或 Referer；因此需要额外请求头、
+设备 TLS 不兼容或交接前已经过期的地址会失败。完整地址只在本次交接的短生命周期内保存，
+不写日志，并在调用后立即清除。
+
+系统边下边播与系统下载后播放均按完整本地文件处理：
 
 ```text
 完整下载到私有临时 MP4
@@ -207,7 +224,8 @@ stop/park media and decoder
 `EXTERNAL_PLAYER_RETURNED`；所有标记都带有“播放未验证”的语义，外部画面/声音只能由真机验收。
 无文件关联、启动错误、下载/写入/大小/文件头失败会在恢复主界面后显示明确提示。外部应用使用期间
 保留本地 MP4；返回后播放器对象仍可重新进入，下一媒体会先清理旧临时文件。旧候选设置
-`player/backend_mode=1` 一次性迁移为此外部模式并删除旧键；无旧键时仍默认 native `OpenUrlL`。
+`player/backend_mode=1` 和旧枚举值3一次性迁移为“系统下载后播放”；无旧键时仍默认内置
+native `OpenUrlL`。直播没有 progressive MP4 地址，仍沿既有内置直播路径，不套用系统模式。
 
 ## 会话生命周期
 
@@ -236,7 +254,8 @@ pause、seek、倍速、媒体会话变化会使缓存失效。普通 MMF 播放
 - soft：`FFMPEG_SOFT_READY ... RGB565_LUT2X2`、`SOFT_SURFACE_ACTIVE`、
   `SOFT_SURFACE_FIRST_PAINT`；
 - 返回：`PLAYER_NATIVE_PORTRAIT_FULLSCREEN_READY`；
-- 外部交接：`EXTERNAL_PLAYER_LOCAL_READY`、`EXTERNAL_PLAYER_HANDOFF_ACCEPTED`
+- 外部交接：`EXTERNAL_PLAYER_URL_READY` / `EXTERNAL_PLAYER_LOCAL_READY`、
+  `EXTERNAL_PLAYER_HANDOFF_ACCEPTED`
   （不是播放成功）、`EXTERNAL_PLAYER_APPLICATION_LEFT`、`EXTERNAL_PLAYER_RETURNED`；
 - 聚合性能：`SOFT_STATS`。
 
@@ -251,7 +270,8 @@ pause、seek、倍速、媒体会话变化会使缓存失效。普通 MMF 播放
 - 全程软解时 Range/MP4 解析失败：显示 `SWERR`，不回退 MMF 视频；
 - OpenFile 下载失败：按备用 URL 单向尝试，全部失败后显示 `DLERR`；
 - MMF 硬件视频不可用且 preflight 已拒绝：进入本机 FFmpeg；
-- 软件解码初始化、内存、编码或性能不可接受：显示明确错误；外部播放器交接仍是待实现产品项；
+- 软件解码初始化、内存、编码或性能不可接受：显示明确错误；系统播放器交接可由用户明确选择，
+  但不是内置后端的自动回退；
 - 任何失败都不得泄露 Cookie、完整签名 URL 或触发无限重试。
 
 ## 证据入口

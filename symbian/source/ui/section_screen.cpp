@@ -68,7 +68,7 @@ void SectionScreen::setImageLoadingEnabled(bool enabled)
 void SectionScreen::setPlaybackPreferences(
     int playbackMode, int decoderMode)
 {
-    m_playbackMode = qBound(0, playbackMode, 3);
+    m_playbackMode = qBound(0, playbackMode, 5);
     m_decoderMode = qBound(0, decoderMode, 2);
 }
 
@@ -487,16 +487,20 @@ void SectionScreen::drawPreferencePage(
     nvgFill(context);
 
     const QString playbackTitles[] = {
-        QString::fromUtf8("流式播放"),
-        QString::fromUtf8("OpenFileL 边下边播"),
-        QString::fromUtf8("下载后播放"),
-        QString::fromUtf8("交给系统播放器")
+        QString::fromUtf8("内置 · 流式播放"),
+        QString::fromUtf8("内置 · 边下边播"),
+        QString::fromUtf8("内置 · 下载后播放"),
+        QString::fromUtf8("系统 · 流式播放"),
+        QString::fromUtf8("系统 · 边下边播"),
+        QString::fromUtf8("系统 · 下载后播放")
     };
     const QString playbackSubtitles[] = {
         QString::fromUtf8("直接把网络地址交给 MMF OpenUrlL"),
         QString::fromUtf8("预缓冲后打开持续增长的本地文件"),
         QString::fromUtf8("完整下载并显示进度，完成后开始播放"),
-        QString::fromUtf8("仅交接完整本地 MP4；外部播放结果需另行确认")
+        QString::fromUtf8("直接交接 360P MP4 链接；结果需另行确认"),
+        QString::fromUtf8("先完整下载 360P MP4，再交给系统播放器"),
+        QString::fromUtf8("先完整下载 360P MP4，再交给系统播放器")
     };
     const QString decoderTitles[] = {
         QString::fromUtf8("自动选择"),
@@ -511,11 +515,11 @@ void SectionScreen::drawPreferencePage(
     const int selected = playback ? m_playbackMode : m_decoderMode;
     const float cardX = left + 14.0f;
     const float cardWidth = width - left - 28.0f;
-    const float cardHeight = 92.0f;
-    const float cardGap = 14.0f;
+    const float cardHeight = playback ? 72.0f : 92.0f;
+    const float cardGap = playback ? 8.0f : 14.0f;
     float cardY = 78.0f;
     int index;
-    const int optionCount = playback ? 4 : 3;
+    const int optionCount = playback ? 6 : 3;
     for (index = 0; index < optionCount; ++index) {
         m_preferenceOptionHitBoxes[index] =
             QRectF(cardX, cardY, cardWidth, cardHeight);
@@ -533,26 +537,30 @@ void SectionScreen::drawPreferencePage(
         nvgStroke(context);
 
         nvgBeginPath(context);
-        nvgCircle(context, cardX + 22.0f, cardY + 46.0f, 8.0f);
+        nvgCircle(context, cardX + 22.0f,
+                  cardY + cardHeight * 0.5f, 8.0f);
         nvgStrokeWidth(context, 1.5f);
         nvgStrokeColor(context, index == selected
             ? nvgRGB(251, 114, 153) : nvgRGB(132, 132, 146));
         nvgStroke(context);
         if (index == selected) {
             nvgBeginPath(context);
-            nvgCircle(context, cardX + 22.0f, cardY + 46.0f, 4.0f);
+            nvgCircle(context, cardX + 22.0f,
+                      cardY + cardHeight * 0.5f, 4.0f);
             nvgFillColor(context, nvgRGB(251, 114, 153));
             nvgFill(context);
         }
         drawText(context,
                  playback ? playbackTitles[index] : decoderTitles[index],
-                 cardX + 42.0f, cardY + 31.0f, 13.5f,
+                 cardX + 42.0f,
+                 cardY + (playback ? 23.0f : 31.0f), 13.5f,
                  nvgRGB(244, 244, 247),
                  NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
         drawText(context,
                  playback ? playbackSubtitles[index]
                           : decoderSubtitles[index],
-                 cardX + 42.0f, cardY + 59.0f, 9.5f,
+                 cardX + 42.0f,
+                 cardY + (playback ? 49.0f : 59.0f), 9.5f,
                  nvgRGB(164, 164, 177),
                  NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
         cardY += cardHeight + cardGap;
@@ -989,16 +997,20 @@ void SectionScreen::draw(NVGcontext *context, float width, float height)
         m_playbackModeHitBox = QRectF(
             cardX, cardY, cardWidth, cardHeight);
         const QString playbackTitles[] = {
-            QString::fromLatin1("PLAYBACK / OPENURL"),
-            QString::fromLatin1("PLAYBACK / OPENFILE"),
-            QString::fromLatin1("PLAYBACK / DOWNLOAD"),
-            QString::fromLatin1("PLAYBACK / EXTERNAL")
+            QString::fromLatin1("INTERNAL / STREAM"),
+            QString::fromLatin1("INTERNAL / OPENFILE"),
+            QString::fromLatin1("INTERNAL / DOWNLOAD"),
+            QString::fromLatin1("SYSTEM / STREAM"),
+            QString::fromLatin1("SYSTEM / OPENFILE"),
+            QString::fromLatin1("SYSTEM / DOWNLOAD")
         };
         const QString playbackSubtitles[] = {
-            QString::fromUtf8("当前：流式播放（OpenUrlL）· 点击选择"),
-            QString::fromUtf8("当前：OpenFileL 边下边播 · 点击选择"),
-            QString::fromUtf8("当前：完整下载后播放 · 点击选择"),
-            QString::fromUtf8("当前：完整下载后交给系统播放器 · 点击选择")
+            QString::fromUtf8("当前：内置流式播放（OpenUrlL）· 点击选择"),
+            QString::fromUtf8("当前：内置 OpenFileL 边下边播 · 点击选择"),
+            QString::fromUtf8("当前：内置完整下载后播放 · 点击选择"),
+            QString::fromUtf8("当前：系统播放器直接打开 360P 链接"),
+            QString::fromUtf8("当前：完整下载 360P 后交给系统播放器"),
+            QString::fromUtf8("当前：完整下载 360P 后交给系统播放器")
         };
         drawInfoCard(context, cardX, cardY, cardWidth,
                      playbackTitles[m_playbackMode],
@@ -1138,7 +1150,7 @@ SectionScreen::Action SectionScreen::pointerRelease(
             return PreferenceBackAction;
         int index;
         const int optionCount = m_preferencePage == PlaybackPreferencePage
-            ? 4 : 3;
+            ? 6 : 3;
         for (index = 0; index < optionCount; ++index) {
             if (!m_preferenceOptionHitBoxes[index].contains(
                     QPointF(position))) {

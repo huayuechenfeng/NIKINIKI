@@ -34,7 +34,7 @@ Nokia 603 功能验收并公开发布。
 - 原生横屏播放器、无系统栏竖屏恢复和重复进入；
 - 系统 MMF 硬件播放与手机本机 FFmpeg H.264 软件回退；
 - 深度破解设备可手动使用不随 SIS 安装的实验性 ref7 admission 补丁；Nokia 603 SW113 已通过；
-- 设置页可持久选择三种点播传输方式与自动/全硬解/全软解策略；
+- 设置页可持久选择内置/系统播放器各三种点播方式，以及自动/全硬解/全软解策略；
 - Qt 4.7.4 / GCCE 4.4.1 的构建、打包和公开仓库检查脚本。
 
 ## 当前播放器
@@ -58,9 +58,12 @@ preflight 获取失败            → 保守回到 MMF，并保留失败日志
 six-observation 与 NanoVG 统计已冻结为独立候选/研究线，不在普通设置中展示。
 该调整见 [ADR-0010](decisions/0010-freeze-qt-candidate-and-restore-native.md)。
 
-设置中另有“完整下载后交给系统播放器”：它只在点播 MP4 完整落盘并通过文件大小及
-`ftyp` 文件头核验后，停放内置媒体、恢复竖屏，再把本地文件名交给 AppArc。Cookie、
-Referer 和签名 URL 不参与交接；`StartDocument()` 返回0只记录为 API 接受，不能写成实际播放成功。
+播放方式按“内置/系统播放器 × 流式/边下边播/下载后播放”显示六个选择。系统播放器的
+“流式”固定请求并核对 360P progressive MP4，停放内置媒体、恢复竖屏后，把带
+`video/mp4` 类型的 HTTP(S) 签名地址交给 AppArc；它不能附带 NIKINIKI 的 Cookie 或
+Referer。系统播放器的“边下边播”和“下载后播放”语义相同：均先完整下载 360P MP4，
+核对响应大小和 `ftyp` 文件头后再交接本地文件，不把增长中文件交给外部应用。
+`StartDocument()` 返回0只记录为 API 接受，不能写成实际播放成功。
 
 实现细节、状态机和日志标记见
 [播放器架构](developer/PLAYBACK_ARCHITECTURE_ZH.md)。
@@ -96,10 +99,11 @@ Referer 和签名 URL 不参与交接；`StartDocument()` 返回0只记录为 AP
 - E7 黑屏设备执行已按停止门冻结，转为离线长期研究；完整边界、证据和续研入口只见
   [E7 MMF Prepare 错误来源](research/player/E7_MMF_PREPARE_ERROR_SOURCE_ZH.md)和
   [设备矩阵](reference/DEVICE_TEST_MATRIX.md#e7-hx-timed-20260908)，它们不构成播放通过。
-- 系统播放器交接的设置迁移、完整下载、MP4 核验、失败提示、竖屏恢复、返回观测和重复进入
-  已完成源码实现；`Symbian3Qt474` GCCE Debug/Release 均为 `sbs errors: 0`、33 条
-  SDK/GCCE 与既有源码警告，开发签名 SIS 打包完成，文档、公开边界及主机测试通过。实际关联处理器、
-  离开应用、外部画面/声音及返回仍待独立真机验收。
+- 系统播放器交接已覆盖设置迁移、360P MP4 链接直交、完整下载、MP4 核验、失败提示、
+  竖屏恢复、返回观测和重复进入。链接模式不会记录完整签名地址，也不会把 Cookie/Referer
+  交给外部应用；`Symbian3Qt474` GCCE Debug/Release 均为 `sbs errors: 0`、33 条既有
+  SDK/编译器警告，并生成自签名验证 SIS。实际关联处理器、远程地址访问、离开应用、
+  外部画面/声音及返回仍待独立真机验收。
 
 原始测量、样本和否定实验均保存在[播放器研究索引](research/README_ZH.md)，不在本页展开。
 
@@ -111,8 +115,9 @@ Referer 和签名 URL 不参与交接；`StartDocument()` 返回0只记录为 AP
   `softSurfacePresented>0`、`overlayVideoDrawMs=0` 和 position cache 命中；
 - 更多机型、H.264 profile/level、分辨率、码率和 CDN 组合的兼容矩阵；
 - ref7 通用特征补丁在 700/701/808、N8/C7/E7/X7 等静态候选上的独立真机资格测试；
-- 系统播放器交接的真机验收：无关联处理器/启动错误、API 接受、应用离开、实际画面/声音、
-  返回、再次进入与缓存清理必须分别记录；API 接受不计播放通过；
+- 系统播放器交接的真机验收：分别覆盖直接 360P MP4 链接和完整本地文件；无关联处理器、
+  链接失效或缺少请求头、TLS/启动错误、API 接受、应用离开、实际画面/声音、返回、再次进入
+  与缓存清理必须分别记录；API 接受不计播放通过；
 - 2026-09-01 第二轮 CODA 已把直播边界定死：首条 FLV 下载到 8,432,361 字节时，
   共享 `RFile` 句柄以 `share-read-write 0` 成功交给 MMF，但本地 `.flv` 的
   `NATIVE_MMF_OPEN_COMPLETE` 仍返回 `KErrNotSupported (-5)`。这证明 Nokia 603 的 MMF 既不能

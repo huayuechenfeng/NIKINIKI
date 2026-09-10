@@ -444,7 +444,7 @@ WiliwiliWidget::WiliwiliWidget(QWidget *parent)
             startupSettings.setValue(
                 QString::fromLatin1("player/playback_mode"),
                 static_cast<int>(
-                    VideoPlayerWidget::ExternalPlayerPlayback));
+                    VideoPlayerWidget::SystemDownloadThenPlayback));
         }
         startupSettings.remove(legacyBackendKey);
         startupSettings.sync();
@@ -455,13 +455,33 @@ WiliwiliWidget::WiliwiliWidget(QWidget *parent)
     m_contentImageLimit = startupSettings.value(
         QString::fromLatin1("ui/content_images"), 14).toInt() > 0
         ? 14 : 0;
+    const QString playbackModeSchemaKey =
+        QString::fromLatin1("player/playback_mode_schema");
+    int storedPlaybackMode = startupSettings.value(
+        QString::fromLatin1("player/playback_mode"),
+        static_cast<int>(
+            VideoPlayerWidget::UrlStreamingPlayback)).toInt();
+    if (startupSettings.value(playbackModeSchemaKey, 0).toInt() < 2) {
+        // Schema 1 used value 3 for “complete download to system player”.
+        // Keep that private-build choice stable when values 3..5 become the
+        // system-player variants of the three transfer methods.
+        if (storedPlaybackMode == 3) {
+            storedPlaybackMode = static_cast<int>(
+                VideoPlayerWidget::SystemDownloadThenPlayback);
+        }
+        startupSettings.setValue(
+            QString::fromLatin1("player/playback_mode"),
+            storedPlaybackMode);
+        startupSettings.setValue(playbackModeSchemaKey, 2);
+        startupSettings.sync();
+        qDebug() << "WW:PLAYER_PLAYBACK_MODE_SCHEMA_MIGRATED"
+                 << storedPlaybackMode;
+    }
     m_playbackMode = qBound(
         static_cast<int>(VideoPlayerWidget::UrlStreamingPlayback),
-        startupSettings.value(
-            QString::fromLatin1("player/playback_mode"),
-            static_cast<int>(
-                VideoPlayerWidget::UrlStreamingPlayback)).toInt(),
-        static_cast<int>(VideoPlayerWidget::ExternalPlayerPlayback));
+        storedPlaybackMode,
+        static_cast<int>(
+            VideoPlayerWidget::SystemDownloadThenPlayback));
     m_decoderMode = qBound(
         static_cast<int>(VideoPlayerWidget::AutomaticDecoder),
         startupSettings.value(
@@ -1364,34 +1384,53 @@ void WiliwiliWidget::timerEvent(QTimerEvent *event)
                 if (result.httpStatus == 200 &&
                     BilibiliPlaybackParser::parsePlaybackSource(
                         result.body, &source, &apiCode, &parseError)) {
-                    source.videoWidth = m_playbackVideoWidth;
-                    source.videoHeight = m_playbackVideoHeight;
-                    const bool wasQualitySwitch =
-                        m_playbackQualitySwitch;
-                    m_detailScreen.setNetworkStatus(
-                        QString::fromLatin1("PLAY Q%1 %2")
-                            .arg(source.quality).arg(source.format));
-                    openVideoPlayback(source);
-                    m_playbackQualitySwitch = false;
-
-                    if (wasQualitySwitch) {
+                    const bool systemPlayer =
+                        m_playbackMode >= static_cast<int>(
+                            VideoPlayerWidget::SystemUrlStreamingPlayback);
+                    if (systemPlayer &&
+                        (source.quality != 16 ||
+                         !source.format.startsWith(
+                             QString::fromLatin1("mp4"),
+                             Qt::CaseInsensitive))) {
+                        m_detailScreen.setNetworkStatus(
+                            QString::fromUtf8(
+                                "未取得系统播放器需要的 360P MP4 地址"));
                         m_networkStage = NetworkComplete;
+                        m_playbackQualitySwitch = false;
+                        qDebug() << "WW:SYSTEM_PLAYER_SOURCE_REJECTED"
+                                 << source.quality << source.format;
                     } else {
-                        const QString danmakuEndpoint = QString::fromLatin1(
-                            "https://api.bilibili.com/x/v1/dm/list.so?oid=%1")
-                            .arg(m_playbackCid);
-                        m_networkStage = FetchingDanmaku;
-                        if (!m_transport.startGet(
-                                QUrl(danmakuEndpoint).toEncoded(),
-                                30000, 4 * 1024 * 1024,
-                                LoginSession::cookieHeader())) {
+                        source.videoWidth = m_playbackVideoWidth;
+                        source.videoHeight = m_playbackVideoHeight;
+                        const bool wasQualitySwitch =
+                            m_playbackQualitySwitch;
+                        m_detailScreen.setNetworkStatus(
+                            QString::fromLatin1("PLAY Q%1 %2")
+                                .arg(source.quality).arg(source.format));
+                        openVideoPlayback(source);
+                        m_playbackQualitySwitch = false;
+
+                        if (wasQualitySwitch) {
                             m_networkStage = NetworkComplete;
+                        } else {
+                            const QString danmakuEndpoint =
+                                QString::fromLatin1(
+                                    "https://api.bilibili.com/x/v1/dm/"
+                                    "list.so?oid=%1")
+                                    .arg(m_playbackCid);
+                            m_networkStage = FetchingDanmaku;
+                            if (!m_transport.startGet(
+                                    QUrl(danmakuEndpoint).toEncoded(),
+                                    30000, 4 * 1024 * 1024,
+                                    LoginSession::cookieHeader())) {
+                                m_networkStage = NetworkComplete;
+                            }
                         }
+                        qDebug() << "WW:PLAYBACK_READY"
+                                 << source.quality << source.format
+                                 << source.backupUrls.size()
+                                 << source.videoWidth << source.videoHeight;
                     }
-                    qDebug() << "WW:PLAYBACK_READY"
-                             << source.quality << source.format
-                             << source.backupUrls.size()
-                             << source.videoWidth << source.videoHeight;
                 } else {
                     m_detailScreen.setNetworkStatus(
                         result.httpStatus == 200
@@ -2993,7 +3032,14 @@ void WiliwiliWidget::startVideoPlayback(int quality, bool qualitySwitch)
         return;
     }
     m_transport.cancel();
-    if (quality <= 0) {
+    const bool systemPlayer =
+        m_playbackMode >= static_cast<int>(
+            VideoPlayerWidget::SystemUrlStreamingPlayback);
+    if (systemPlayer) {
+        // Progressive qn=16 is Bilibili's 360P MP4 source. System-player
+        // modes must not inherit a higher internal-player preference.
+        quality = 16;
+    } else if (quality <= 0) {
         QSettings settings(
             QSettings::IniFormat, QSettings::UserScope,
             QString::fromLatin1("wiliwili"),
@@ -3015,8 +3061,9 @@ void WiliwiliWidget::startVideoPlayback(int quality, bool qualitySwitch)
         .arg(m_playbackCid)
         .arg(quality);
     if (!qualitySwitch) {
-        m_detailScreen.setNetworkStatus(
-            QString::fromUtf8("正在获取兼容播放地址..."));
+        m_detailScreen.setNetworkStatus(systemPlayer
+            ? QString::fromUtf8("正在获取系统播放器 360P MP4 地址...")
+            : QString::fromUtf8("正在获取兼容播放地址..."));
     }
     m_networkStage = FetchingPlayback;
     if (!m_transport.startGet(
@@ -3566,13 +3613,16 @@ void WiliwiliWidget::setPlaybackMode(int mode)
 {
     m_playbackMode = qBound(
         static_cast<int>(VideoPlayerWidget::UrlStreamingPlayback), mode,
-        static_cast<int>(VideoPlayerWidget::ExternalPlayerPlayback));
+        static_cast<int>(
+            VideoPlayerWidget::SystemDownloadThenPlayback));
     QSettings settings(
         QSettings::IniFormat, QSettings::UserScope,
         QString::fromLatin1("wiliwili"),
         QString::fromLatin1("wiliwili_symbian"));
     settings.setValue(
         QString::fromLatin1("player/playback_mode"), m_playbackMode);
+    settings.setValue(
+        QString::fromLatin1("player/playback_mode_schema"), 2);
     settings.sync();
     m_sectionScreen.setPlaybackPreferences(
         m_playbackMode, m_decoderMode);
@@ -3580,13 +3630,21 @@ void WiliwiliWidget::setPlaybackMode(int mode)
         SectionScreen::NoPreferencePage);
     m_sectionScreen.setStatus(
         m_playbackMode == VideoPlayerWidget::UrlStreamingPlayback
-            ? QString::fromUtf8("播放方式：流式播放（OpenUrlL）")
+            ? QString::fromUtf8("播放方式：内置流式播放（OpenUrlL）")
             : m_playbackMode ==
                   VideoPlayerWidget::OpenFileStreamingPlayback
-            ? QString::fromUtf8("播放方式：OpenFileL 边下边播")
+            ? QString::fromUtf8("播放方式：内置 OpenFileL 边下边播")
             : m_playbackMode == VideoPlayerWidget::DownloadThenPlayback
-            ? QString::fromUtf8("播放方式：下载后播放")
-            : QString::fromUtf8("播放方式：完整下载后交给系统播放器"));
+            ? QString::fromUtf8("播放方式：内置下载后播放")
+            : m_playbackMode ==
+                  VideoPlayerWidget::SystemUrlStreamingPlayback
+            ? QString::fromUtf8("播放方式：系统播放器流式 360P")
+            : m_playbackMode ==
+                  VideoPlayerWidget::SystemOpenFileStreamingPlayback
+            ? QString::fromUtf8(
+                "播放方式：系统边下边播（完整下载后交接）")
+            : QString::fromUtf8(
+                "播放方式：系统下载后播放（完整下载后交接）"));
 }
 
 void WiliwiliWidget::setDecoderMode(int mode)
@@ -4605,7 +4663,7 @@ void WiliwiliWidget::mouseReleaseEvent(QMouseEvent *event)
                 updateGL();
             } else if (action >= SectionScreen::SelectUrlStreamingAction &&
                         action <=
-                            SectionScreen::SelectExternalPlayerAction) {
+                            SectionScreen::SelectSystemDownloadThenPlaybackAction) {
                 setPlaybackMode(
                     static_cast<int>(action) -
                     static_cast<int>(

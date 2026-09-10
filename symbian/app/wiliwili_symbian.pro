@@ -276,6 +276,7 @@ symbian {
     DEPLOYMENT += nikiniki_deployment
     LIBS += -lhttp -linetprotutil -lbafl -lefsrv -llibz \
             -lcone -leikcore -leikcoctl -lavkon -lws32 -lapgrfx -lapparc \
+            -lapmime \
             -lmediaclientvideo \
             -lmediaclientvideodisplay -ldevvideo
     # NetworkServices opens the bearer; ReadUserData permits certificate-store
