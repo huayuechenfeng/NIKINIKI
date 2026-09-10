@@ -2,7 +2,7 @@
 
 > 状态：Active
 > 适用版本：1.2.0 正式发布
-> 最近事实核验：2026-09-02
+> 最近事实核验：2026-09-10
 > 本页职责：描述当前实现和验证边界，不记录实验过程或发布校验值
 
 ## 发布基线
@@ -54,6 +54,10 @@ preflight 获取失败            → 保守回到 MMF，并保留失败日志
 唯一透明 ARGB 顶层只绘制弹幕和控制。播放器完整原生对象图跨会话复用，横屏下视频、UI、
 弹幕和输入都直接使用 640×360 坐标。
 
+普通产品只提供 native MMF/FFmpeg 路径。Qt Mobility 兼容后端、旧窗口对照、
+six-observation 与 NanoVG 统计已冻结为独立候选/研究线，不在普通设置中展示。
+该调整见 [ADR-0010](decisions/0010-freeze-qt-candidate-and-restore-native.md)。
+
 实现细节、状态机和日志标记见
 [播放器架构](developer/PLAYBACK_ARCHITECTURE_ZH.md)。
 
@@ -85,6 +89,11 @@ preflight 获取失败            → 保守回到 MMF，并保留失败日志
 - Debug 和 Release 普通构建均已通过，1.0 Release 为 `sbs errors: 0`，32 条为既有 SDK/GCCE 警告。
 - 用户已完成 1.2 Nokia 603 功能验收：首页卡片滚动优化、音量控制、相关推荐、动态正文与评论
   排版均确认可用；普通滚动弹幕从右边缘进入，顶部/底部固定弹幕保持居中。
+- E7 黑屏研究已把最早动态边界收窄到 camera logical channel
+  `DoControl(function=0, a1=(void*)7, a2=bounded request)` 返回 `-2`；当前没有
+  覆盖全部有限候选的单点 ARM 观测契约，因此停止设备执行并转为离线长期研究。
+  完整证据只见 [E7 MMF Prepare 错误来源](research/player/E7_MMF_PREPARE_ERROR_SOURCE_ZH.md)
+  和[设备矩阵](reference/DEVICE_TEST_MATRIX.md#e7-hx-timed-20260908)；它们不构成播放通过。
 
 原始测量、样本和否定实验均保存在[播放器研究索引](research/README_ZH.md)，不在本页展开。
 
@@ -94,8 +103,8 @@ preflight 获取失败            → 保守回到 MMF，并保留失败日志
 - 正式 1.0 包中真实 header preflight 的 `ACCEPT → MMF` 与 `REJECT → FFMPEG` 真机标记；
 - 独立不透明 soft surface 与 500 ms `PositionL()` 校准方案的专项真机遥测，包括
   `softSurfacePresented>0`、`overlayVideoDrawMs=0` 和 position cache 命中；
-- 初代 Symbian³ 设备播放黑屏 bug 的定位和修复；修复后恢复原版 Symbian³、Anna 与
-  N8 / E7 / X7 / C7 的统一 SIS 公测；
+- 初代 Symbian³ 的 native MMF 黑屏原因仍未修复；研究线按上述停止门保持冻结，
+  不阻塞先交付明确的完整本地 MP4 外部播放器交接；
 - 更多机型、H.264 profile/level、分辨率、码率和 CDN 组合的兼容矩阵；
 - ref7 通用特征补丁在 700/701/808、N8/C7/E7/X7 等静态候选上的独立真机资格测试；
 - 内置软件解码失败或性能不足时的明确外部播放器交接；

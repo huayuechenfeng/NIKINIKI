@@ -4,15 +4,23 @@
 > 基线：1.2.0 正式发布后的维护主线
 > 本页职责：维护 Now / Next / Later，不保存已完成实验的过程
 
-## Now：修复初代 Symbian³ 播放黑屏并维持 1.2 基线
+## Now：交付完整本地 MP4 的外部播放器交接，并维持 1.2 基线
 
-### 0. 初代 Symbian³ 黑屏恢复
+### 0. 外部播放器交接
 
-- 以 Nokia N8 / E7 / X7 / C7 的完整本地 MP4 和同一线上媒体为控制，分别记录 controller、
-  视频 surface、窗口链路和音视频轨状态；
-- 修复前维持 1.2 的不支持公告，不通过降低清晰度、切 CDN 或重复尝试掩盖黑屏；
-- 修复后再恢复原版 Symbian³、Anna 和初代 Belle 的统一 SIS 回归，目标仍是 Symbian^3 全机型、
-  全系统版本。
+- 仅对已完整下载且核验为 MP4 的本地文件提供明确用户选择；不向外部应用透传
+  Cookie、签名 URL 或增长中文件；
+- 交接前停止并停放内部媒体、解码器、计时器与下载回调，恢复稳定竖屏和前台所有权，
+  再以 Symbian 文档交接打开本地文件；
+- 区分“交接 API 已接受”、“已离开 NIKINIKI”和“外部播放实际成功”；应用只能观测前两者，
+  不得把调用成功写成播放成功；
+- 给出无关联处理器、启动失败和返回后文件不可用的明确反馈；从外部应用返回后可重复进入、
+  重新下载或选择其他媒体，不复用旧会话回调；
+- 迁移旧设置时保留 native 默认；未发布 Qt 候选留下的 `player/backend_mode=1`
+  只能显式映射为新的外部播放选择，不得在普通构建中恢复 Qt 后端。
+
+该功能必须作为清理后的独立产品提交，不与本次工作区归档提交混合。主机构建与
+静态检查通过后仍标记“设备待验收”，由独立研究会话完成真机结果。
 
 ### 1. 播放器稳定性
 
@@ -58,8 +66,7 @@
 1. 建立 Nokia 603 和 N8 一代的 decode-only、convert-only、present-only 基线；
 2. 在测量证明瓶颈后，评估 FFmpeg ARMv6/VFP、loop filter、non-reference frame 和追帧策略；
 3. 扩充 360P/480P/720P、profile/level、AAC、横竖向编码和 CDN 媒体矩阵；
-4. 对内置软件解码不支持、内存不足或性能不可接受的媒体，实现明确的外部播放器确认入口；
-5. 回归搜索相关性、输入法焦点、登录态、评论分页和异常恢复。
+4. 回归搜索相关性、输入法焦点、登录态、评论分页和异常恢复。
 
 软件性能目标是先推动 Symbian³ 设备的 360P 软件播放稳定达到 20 fps 以上；
 Nokia 603 再向稳定 30 fps 研究。目标不是已取得的结果，任何数字都必须由真机矩阵支持。
@@ -70,11 +77,16 @@ H.264 ref7 支线已经按 H1 结题：Nokia 603 的目标合法 R7 graph 可由
 admission patch 两条路径正确硬解。该项目不再占用 Now/Next；最终证据、产品边界和归档入口见
 [H.264 ref7 硬件解码结题报告](research/player/H264_REF7_HARDWARE_DECODE_FINAL_REPORT_ZH.md)。
 
+E7 黑屏取证已收窄到 camera logical channel 返回 `-2`；当前没有能以单次定点观测
+区分全部有限候选的 ARM 契约，因此不再构建或执行新 observer。Qt 候选和诊断入口按
+[ADR-0010](decisions/0010-freeze-qt-candidate-and-restore-native.md)冻结；完整调查只见
+[E7 MMF Prepare 错误来源](research/player/E7_MMF_PREPARE_ERROR_SOURCE_ZH.md)。
+
 ## Later：不阻塞播放器主线
 
 - 直播断流恢复、画质切换和直播弹幕；
 - 局部布局和其他 UI polish；
-- DevVideo post-processor memory-output 等底层替代方案。
+- DevVideo post-processor memory-output 等底层替代方案（E7 当前支线已止损）。
 - 对可选 ref7 补丁做跨设备真机资格测试；静态特征命中不计通过，也不阻塞播放器发布。
 
 阶段性 H.264 研究材料已归档在 `research/player/post-1.0/`；其他研究候选只有建立当前回归基线后，
