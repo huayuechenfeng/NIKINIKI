@@ -6,10 +6,10 @@ historical names remain unchanged for compatibility and traceability.
 
 ## Current status
 
-- Version 1.2.0 is the current development mainline; 1.1.0 remains the formally
-  signed and published release. Version 1.1.0 fixes
-  the first-install font-loading stall and adds explicit transport and decoder
-  policy selectors, including shared-file progressive `OpenFileL` playback.
+- Version 1.3.0 is the current signed and published mainline. It adds explicit
+  360P MP4 handoff to the system player: direct URL handoff for streaming and
+  complete-download handoff for the other two external-player choices. The
+  native MMF/FFmpeg player remains the default.
 - Compatible AVC
   keeps the native MMF route; the known weighted/7-reference AVC template
   uses the on-phone PPSSPP-FFmpeg H.264 fallback with the existing CPU
@@ -138,7 +138,7 @@ Qt 4.7's Symbian qmake generator does not resolve this multi-directory project
 correctly as a shadow build. `Build-App.ps1` therefore builds in
 `symbian/app` and copies the SDK-signed SIS to the ignored configuration
 directory with a public-facing name such as
-`symbian/out/wiliwili-symbian-release/NIKINIKI_1.2.0_release.sis`. The internal
+`symbian/out/wiliwili-symbian-release/NIKINIKI_1.3.0_release.sis`. The internal
 target remains `wiliwili_symbian` only for upgrade compatibility and source
 traceability; it is not a public installation asset name.
 

@@ -1,7 +1,7 @@
 # NIKINIKI 故障排查
 
 > 状态：Active
-> 适用版本：1.2.0；初代 Symbian³ 设备暂时保留 1.1.0
+> 适用版本：1.3.0
 
 ## 首次启动长时间黑屏
 
@@ -36,8 +36,17 @@
 
 不要公开 Cookie、完整签名媒体 URL、账号令牌或私网 CODA 地址。
 
-N8 / E7 / X7 / C7 等初代 Symbian³ 设备目前的播放黑屏问题尚未解决，1.2 暂不支持这些机型。
-请保留 1.1.0 并等待后续修复；不要通过反复切换播放方式或解码方式绕过该限制。
+N8 / E7 / X7 / C7 等初代 Symbian³ 设备的内置播放黑屏经受控核查位于系统底层媒体/显示链路，
+短期内无法由普通应用代码可靠修复。请在“设置 → 播放方式”中选择系统播放器：
+
+- “系统播放器 · 流式”会直接打开经核对的 360P MP4 链接；
+- “系统播放器 · 边下边播”和“系统播放器 · 下载后播放”目前都会先完整下载并核验 MP4，
+  再打开本地文件；
+- 若系统播放器不能流式打开 HTTPS 视频，可尝试安装
+  [Belle HTTPS Streaming 补丁](https://nnproject.cc/bellehttpsplayer/)，或选择下载后播放。
+
+补丁只适用于其页面声明的 Belle Refresh / FP1 / FP2，并依赖 TLS 补丁。NIKINIKI 只能确认
+系统接受交接请求，无法确认外部播放器最终是否成功显示画面和输出声音。
 
 ## 播放卡顿
 
@@ -55,5 +64,4 @@ MMF 硬解兼容的视频通常更流畅。进入本机软件 H.264 路径的 36
 公开用户只应安装 `NIKINIKI_版本号_release.sis`。Debug、unsigned、`surfacepersist1`、`codeccompat1`、
 `headercontrol1`、`armsoftprobe1`、GLES-YUV 等包均为历史研究材料。
 
-如果 1.2.0 安装失败或无法启动，请到 QQ 群 `977410275` 反馈。初代 Symbian³ 设备请继续使用
-[1.1.0](https://github.com/huayuechenfeng/NIKINIKI/releases/tag/v1.1.0)。
+如果 1.3.0 安装失败或无法启动，请到 QQ 群 `977410275` 反馈。

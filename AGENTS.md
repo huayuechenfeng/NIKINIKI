@@ -76,8 +76,8 @@ H.264 ref7 硬解支线已按 H1 结题。Direct DevVideo Header/Submit split �
 
 ## 当前发布
 
-1.1.0 已于 2026-08-31 正式发布。安装包、大小、SHA-256、签名和重链接材料的唯一记录是
-`docs/releases/RELEASE_1.1.0_ZH.md`；不要在计划、状态或研究文档中维护第二份校验值。
+1.3.0 已于 2026-09-12 正式发布。安装包、大小、SHA-256、签名和重链接材料的唯一记录是
+`docs/releases/RELEASE_1.3.0_ZH.md`；不要在计划、状态或研究文档中维护第二份校验值。
 
 旧版完整指南已封存在
 `docs/archive/wiliwiliforsymbian3/AGENTS_LEGACY_2026-08-29.md`，只用于追溯。

@@ -1,6 +1,6 @@
 TEMPLATE = app
 TARGET = wiliwili_symbian
-VERSION = 1.2.0
+VERSION = 1.3.0
 DEFINES += WILIWILI_SYMBIAN_VERSION_STR=\"$$VERSION\"
 
 # NIKINIKI is the public product name. Keep the proven executable target,

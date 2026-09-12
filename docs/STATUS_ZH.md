@@ -1,25 +1,25 @@
 # NIKINIKI 当前状态
 
 > 状态：Active
-> 适用版本：1.2.0 正式发布
-> 最近事实核验：2026-09-10
+> 适用版本：1.3.0 正式发布
+> 最近事实核验：2026-09-12
 > 本页职责：描述当前实现和验证边界，不记录实验过程或发布校验值
 
 ## 发布基线
 
-NIKINIKI 1.2.0 已完成 `Symbian3Qt474` GCCE Release 编译、打包、有效签名和用户完成的
-Nokia 603 功能验收并公开发布。
+NIKINIKI 1.3.0 已完成 `Symbian3Qt474` GCCE Debug/Release 编译、打包、有效签名和用户功能验收
+并公开发布。
 正式安装包、大小、SHA-256、证书和 LGPL 重链接材料只在
-[1.2.0 发布说明](releases/RELEASE_1.2.0_ZH.md)维护。
+[1.3.0 发布说明](releases/RELEASE_1.3.0_ZH.md)维护。
 
 当前统一包：
 
 - 目标为 ARMv5、Qt 4.7.4、GCCE 4.4.1；
 - 使用最低 `Symbian3Qt474` 构建，一个应用 SIS 覆盖 Symbian³、Anna 和 Belle；
 - Nokia 603 / Nokia Belle 是当前主要真机基线；
-- Nokia 603、700、701、808 等原生 Belle 设备不受 1.2 的兼容性限制；
-- Nokia N8 / E7 / X7 / C7 等初代 Symbian³ 设备存在播放黑屏 bug，1.2 暂不支持；
-  修复后仍以 Symbian³、Anna、Belle 全系统/全机型为目标。
+- Nokia 603、700、701、808 等原生 Belle 设备继续使用统一包；
+- Nokia N8 / E7 / X7 / C7 等初代 Symbian³ 设备的内置播放器黑屏经核查属于系统底层
+  媒体/显示限制，短期内无法由普通应用代码可靠修复；1.3 提供系统播放器交接作为兼容路径。
 
 ## 已实现能力
 
@@ -35,6 +35,7 @@ Nokia 603 功能验收并公开发布。
 - 系统 MMF 硬件播放与手机本机 FFmpeg H.264 软件回退；
 - 深度破解设备可手动使用不随 SIS 安装的实验性 ref7 admission 补丁；Nokia 603 SW113 已通过；
 - 设置页可持久选择内置/系统播放器各三种点播方式，以及自动/全硬解/全软解策略；
+- 系统流式模式直接交接 360P MP4 链接；系统边下边播和下载后播放均完整下载后再交接；
 - Qt 4.7.4 / GCCE 4.4.1 的构建、打包和公开仓库检查脚本。
 
 ## 当前播放器
@@ -101,9 +102,8 @@ Referer。系统播放器的“边下边播”和“下载后播放”语义相�
   [设备矩阵](reference/DEVICE_TEST_MATRIX.md#e7-hx-timed-20260908)，它们不构成播放通过。
 - 系统播放器交接已覆盖设置迁移、360P MP4 链接直交、完整下载、MP4 核验、失败提示、
   竖屏恢复、返回观测和重复进入。链接模式不会记录完整签名地址，也不会把 Cookie/Referer
-  交给外部应用；`Symbian3Qt474` GCCE Debug/Release 均为 `sbs errors: 0`、33 条既有
-  SDK/编译器警告，并生成自签名验证 SIS。实际关联处理器、远程地址访问、离开应用、
-  外部画面/声音及返回仍待独立真机验收。
+  交给外部应用；用户已完成签名候选包的功能测试并确认可以运行。该反馈证明当前交接路径
+  可用，但未提供机型和六种模式逐项记录，不能扩大成所有固件、URL 与外部播放器均通过。
 
 原始测量、样本和否定实验均保存在[播放器研究索引](research/README_ZH.md)，不在本页展开。
 
@@ -115,9 +115,9 @@ Referer。系统播放器的“边下边播”和“下载后播放”语义相�
   `softSurfacePresented>0`、`overlayVideoDrawMs=0` 和 position cache 命中；
 - 更多机型、H.264 profile/level、分辨率、码率和 CDN 组合的兼容矩阵；
 - ref7 通用特征补丁在 700/701/808、N8/C7/E7/X7 等静态候选上的独立真机资格测试；
-- 系统播放器交接的真机验收：分别覆盖直接 360P MP4 链接和完整本地文件；无关联处理器、
-  链接失效或缺少请求头、TLS/启动错误、API 接受、应用离开、实际画面/声音、返回、再次进入
-  与缓存清理必须分别记录；API 接受不计播放通过；
+- 系统播放器的扩展兼容矩阵：继续按设备分别记录直接 360P MP4 链接和完整本地文件、
+  无关联处理器、链接失效、TLS/启动错误、应用离开、实际画面/声音、返回、再次进入和缓存清理；
+  API 接受仍不单独计为播放通过；
 - 2026-09-01 第二轮 CODA 已把直播边界定死：首条 FLV 下载到 8,432,361 字节时，
   共享 `RFile` 句柄以 `share-read-write 0` 成功交给 MMF，但本地 `.flv` 的
   `NATIVE_MMF_OPEN_COMPLETE` 仍返回 `KErrNotSupported (-5)`。这证明 Nokia 603 的 MMF 既不能
@@ -139,7 +139,7 @@ Referer。系统播放器的“边下边播”和“下载后播放”语义相�
   唯一命中也不构成兼容或安全保证；
 - 直播远程 `OpenUrlL()` 和本地增长 FLV `OpenFileL()` 都已由 Nokia 603 CODA 日志确认为
   `KErrNotSupported (-5)`；手机本地解复用路径尚未真机验收，直播不属于当前正式发布稳定性承诺；
-- 外部播放器回退尚未形成正式产品闭环；
+- 系统播放器已经形成 1.3 正式兼容路径，但远程 HTTPS 能力、关联处理器和媒体兼容仍由固件决定；
 - Bilibili API、登录和媒体 URL 会受服务端变化影响；
 - 1.1.0 已修复首次启动同步加载完整字体导致的长时间黑屏；回退到 1.0.0 时仍需参考
   [故障排查](user/TROUBLESHOOTING_ZH.md)中的旧版处理方法。
@@ -148,7 +148,7 @@ Referer。系统播放器的“边下边播”和“下载后播放”语义相�
 
 | 事实 | 维护位置 |
 |---|---|
-| 安装包和签名 | `docs/releases/RELEASE_1.2.0_ZH.md` |
+| 安装包和签名 | `docs/releases/RELEASE_1.3.0_ZH.md` |
 | 真机通过/失败 | `docs/reference/DEVICE_TEST_MATRIX.md` |
 | 工具链版本 | `docs/reference/TOOLCHAIN_REPORT.md` |
 | 当前播放结构 | `docs/developer/PLAYBACK_ARCHITECTURE_ZH.md` |
