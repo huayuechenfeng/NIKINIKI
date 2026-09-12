@@ -10,8 +10,8 @@
 | 文件 | `symbian/out/releases/v1.3.0/NIKINIKI_1.3.0_release.sis` |
 | GitHub Release | [v1.3.0](https://github.com/huayuechenfeng/NIKINIKI/releases/tag/v1.3.0)，资产名 `NIKINIKI_1.3.0_release.sis` |
 | 重链接材料 | `NIKINIKI_1.3.0_relink_materials.zip`；包含未签名 SIS、产品源码快照、固定 FFmpeg 源码快照、许可证、校验和重建说明 |
-| 大小 | 待最终构建填写 |
-| SHA-256 | 待最终构建填写 |
+| 大小 | 9,898,032 bytes |
+| SHA-256 | `6EB8ECF2D5FC44DE43F71EC3689114F10E5C9845155399E7428906C9251C7854` |
 | 包版本 | 1.3.0 |
 | UID | `0xE000B100` |
 | 目标 | ARMv5 / GCCE 4.4.1 / `Symbian3Qt474` |
@@ -59,7 +59,8 @@ QVideoWidget、graphics surface 和 DevVideo 等受控核查后，已定位为�
 ## 构建与签名验收
 
 - Qt 4.7.4 qmake 使用 `symbian-sbsv2`，构建目标为 `arm.v5.urel.gcce4_4_1`；
-- GCCE Debug/Release、SIS 打包、主机 JSON 测试、公开仓库边界、文档链接与 diff 检查均已通过；
+- GCCE Debug/Release 均为 `sbs errors: 0`、33 条既有 SDK/GCCE 警告；SIS 打包、主机 JSON
+  58/58、公开仓库边界、文档链接与 diff 检查均已通过；
 - 普通构建使用 native MMF/FFmpeg 播放，不包含 Qt 候选后端或 E7 诊断 CONFIG；
 - SDK 的 2009–2019 旧自签名已剥离；正式包使用 `NIKINIKI` 当前证书重签，证书有效期为
   2026-09-02 至 2036-08-30；
